@@ -1,0 +1,35 @@
+{
+    "files.associations": {
+        "*.c" : "c",
+        "*.h" : "c"
+    },
+    "editor.tabSize": 4,
+    "editor.insertSpaces": false,
+    "editor.tokenColorCustomizations": {
+        "textMateRules": [
+            {
+                "scope": "entity.name.type.c",
+                "settings": {
+                    "foreground": "#00AAFF",
+                    "fontStyle": ""
+                }
+            },
+            {
+                "scope": "variable",
+                "settings": {
+                    "foreground": "#AEE3FF",
+                }
+            },
+            {
+                "scope": [
+                    "punctuation.section.arguments.begin.bracket.round.c",
+                    "punctuation.section.arguments.end.bracket.round.c",
+                    "punctuation.section.parameters.begin.bracket.round.c",
+                    "punctuation.section.parameters.end.bracket.round.c",],
+                "settings": {
+                    "foreground": "#FFFFFF",
+                }
+            }
+        ]
+    }
+}
