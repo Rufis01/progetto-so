@@ -1,7 +1,10 @@
 {
     "files.associations": {
-        "*.c" : "c",
-        "*.h" : "c"
+        "*.c": "c",
+        "*.h": "c",
+        "system_error": "c",
+        "cmath": "c",
+        "*.tcc": "c"
     },
     "editor.tabSize": 4,
     "editor.insertSpaces": false,
