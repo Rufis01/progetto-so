@@ -15,7 +15,7 @@ static inline int readWL(int fd, char *buf, uint8_t bufLen)
 	
 }
 
-static inline int readWL(int fd, char *buf, uint8_t msgLen)
+static inline int writeWL(int fd, char *buf, uint8_t msgLen)
 {
 	write(fd, &msgLen, 1);
 	return write(fd, buf, msgLen);

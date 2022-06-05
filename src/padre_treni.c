@@ -1,8 +1,15 @@
-#include <unistd.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 
 #include "mappa.h"
 #include "registro_client.h"
+#include "log.h"
 
 ///TODO: unlink sockets
 ///TODO: usoErrato ok??
@@ -10,13 +17,14 @@ static void usoErrato(void);
 static void creaBoe(void);
 static void ETCS1(char* mappa);
 static void ETCS2(char* mappa);
+static void ETCS2_RBC(char *mappa);
 
 int main(int argc, char **argv)
 {
 	if(argc <= 2)
 		usoErrato();
 		//EXITS
-
+	log_init("./log/padre_treni.log");
 	creaBoe();
 
 	if(strcmp(argv[1], "ETCS1") == 0)
@@ -34,7 +42,29 @@ int main(int argc, char **argv)
 			//EXITS
 	}
 
+	log_fini();
 	return 0;
+}
+
+static void creaBoe(void)
+{
+	char segpath[32] = {0};
+
+	mkdir("./boe", 0777);
+	umask(0666);
+
+	for(int i = 0; i < NUM_SEGMENTI; i++)
+	{
+		if(snprintf(segpath, sizeof(segpath), "./boe/MA%d.log", i+1) >= sizeof(segpath))
+		{
+			LOGE("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
+			exit(EXIT_FAILURE);
+		}
+
+		int fd = open(segpath, O_CREAT | O_WRONLY, 0666);
+		write(fd, "0", 1);
+		close(fd);
+	}
 }
 
 static void ETCS1(char *mappa)
@@ -43,20 +73,27 @@ static void ETCS1(char *mappa)
 	if(map == MAPPA_NON_VALIDA)
 		usoErrato();
 		//EXITS
-	
+	rc_init(false);
 	int treni = rc_getNumeroTreni();
+	rc_fini();
 
 	for(int i=0; i<treni; i++)
 	{
 		if(fork() == 0)		//Sono il figlio
-			exit(0);//execve();
+		{
+			execl("./processo_treno", "processo_treno", "ETCS1", (char *)NULL);
+			exit(EXIT_SUCCESS);
+		}
 	}
 
 	for(int i=0; i<treni; i++)
-		if(!wait())
+	{
+		int status;
+		if(!wait(&status))
 		{
 			perror("padre_treni:");
 		}
+	}
 }
 
 static void ETCS2(char *mappa)
@@ -75,10 +112,13 @@ static void ETCS2(char *mappa)
 	}
 
 	for(int i=0; i<treni; i++)
-		if(!wait())
+	{
+		int status;
+		if(!wait(&status))
 		{
 			perror("padre_treni:");
 		}
+	}
 }
 
 static void ETCS2_RBC(char *mappa)

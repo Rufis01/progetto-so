@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include <unistd.h>
 #include <sys/time.h>
@@ -11,8 +12,9 @@
 
 #include "log.h"
 #include "mappa.h"
+#include "inline_rw_utils.h"
 
-#define HELLO (isTrain) ((isTrain) ? "TRAIN" : "SUPER")
+#define HELLO(isTrain) ((isTrain) ? "TRAIN" : "SUPER")
 #define OK ("OKE")
 #define GET_TRENI ("TRENI")
 #define GET_ITINERARIO ("ITINERARIO")
@@ -68,7 +70,7 @@ bool rc_init(bool isTrain)
 	}
 
 	//Apre la socket
-	if(connect(_fd, &addr, sizeof(addr)) < 0)
+	if(connect(_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
 	{
 		LOGE("Impossibile connettersi alla socket!\n");
 		perror("registro_client");
@@ -76,13 +78,13 @@ bool rc_init(bool isTrain)
 	}
 
 	//Comunica al registro che l'interlocutore è un treno
-	uint8_t len = sizeof(HELLO_MSG(_isTrain));
-	write(_fd, &len, 1);
-	write(_fd, HELLO_MSG(_isTrain), len);
+	uint8_t len = sizeof(HELLO(_isTrain));
+	writeWL(_fd, (char *)&len, 1);
+	writeWL(_fd, HELLO(_isTrain), len);
 
 	char buf[8] = {0};
 
-	if(read(_fd, buf, sizeof(OK)) < sizeof(OK))
+	if(readWL(_fd, buf, sizeof(OK)) < sizeof(OK))
 		return TIMEOUT(false);
 
 	if(strcmp(buf, OK) != 0)
@@ -98,9 +100,9 @@ int rc_getNumeroTreni(void)
 	///TODO: Short?
 	int numTreni;
 
-	write(_fd, GET_TRENI, sizeof(GET_TRENI));
+	writeWL(_fd, GET_TRENI, sizeof(GET_TRENI));
 
-	if(read(_fd, &numTreni, sizeof(int)) < sizeof(int))
+	if(readWL(_fd, (char *)&numTreni, sizeof(int)) < sizeof(int))
 		return TIMEOUT(-1);
 
 	return numTreni;
@@ -112,16 +114,29 @@ struct itinerario *rc_getItinerario(void)
 
 	if(!itin)
 	{
-		LOGE("Impossibile allocare memoria!\n");
 		return NULL;
 	}
 
-	write(_fd, GET_ITINERARIO, sizeof(GET_ITINERARIO));
+	writeWL(_fd, GET_ITINERARIO, sizeof(GET_ITINERARIO));
 
-	if(read(_fd, &itin->num_itinerario, sizeof(unsigned short)) < sizeof(unsigned short))
+	if(readWL(_fd, (char *)&itin->num_itinerario, sizeof(unsigned short)) < sizeof(unsigned short))
+		return TIMEOUT(NULL);
+	if(readWL(_fd, (char *)&itin->num_tappe, sizeof(unsigned short)) < sizeof(unsigned short))
 		return TIMEOUT(NULL);
 
-	return 0xDEADBEEF;
+	itin->tappe = malloc(itin->num_tappe * sizeof(char *));
+
+	///TODO: (timeout and) error checks
+	for(int i=0; i<itin->num_tappe; i++)
+	{
+		uint8_t tappaLen;
+
+		read(_fd, &tappaLen, sizeof(uint8_t));
+		itin->tappe[i] = malloc(tappaLen);
+		read(_fd, itin->tappe[i], tappaLen);
+	}
+
+	return itin;
 }
 
 void rc_freeItinerario(struct itinerario *itin)

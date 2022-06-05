@@ -1,6 +1,8 @@
 #ifndef MAPPA_H
 #define MAPPA_H
 
+#define NUM_SEGMENTI 16
+
 #define ISSTAZIONE(seg) (seg[0] == 'S')
 
 typedef enum

@@ -10,7 +10,8 @@
 #include "rbc_client.h"
 #include "log.h"
 
-static void missione(modalita mod);
+static void init(modalita mod);
+static void missione(modalita mod, struct itinerario *itin);
 static bool occupaSegmento(const char* segmento);
 
 /* processo_treno richiede come parametro la modalità (ETCS1/2)*/
@@ -32,14 +33,33 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	log_init("sciuli");
-	missione(mod);
+	init(mod);
 }
 
-static void missione(modalita mod)
+static void init(modalita mod)
 {
+	char logpath[255] = {0};
+	struct itinerario *itin;
 	rc_init(true);
-	struct itinerario *itin = rc_getItinerario();
+	itin = rc_getItinerario();
+
+	if(snprintf(logpath, sizeof(logpath), "./log/treno%d.log", itin->num_itinerario) >= sizeof(logpath))
+	{
+		LOGE("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
+		exit(EXIT_FAILURE);
+	}
+
+	log_init(logpath);
+
+	missione(mod, itin);
+
+	rc_freeItinerario(itin);
+	log_fini();
+}
+
+static void missione(modalita mod, struct itinerario *itin)
+{
+	log_init("./log/");
 	bool okToMove, maConcessa = true;
 
 	for(int i=0; i<itin->num_tappe; i++)

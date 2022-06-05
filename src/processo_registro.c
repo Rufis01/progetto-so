@@ -91,13 +91,13 @@ static void accettaConnessioni(int sfd, mappa_id map)
 			treni++;
 			int args[] = {clientFd, map, treni};
 			writeWL(clientFd, "OK", 3);
-			tryFork(trenoLoop, args);
+			creaFiglio(trenoLoop, args);
 		}
 		else if(strcmp(buf, "SUPER"))
 		{
 			int args[] = {clientFd, map};
 			writeWL(clientFd, "OK", 3);
-			tryFork(superLoop, &args);
+			creaFiglio(superLoop, &args);
 		}
 		else
 		{
@@ -107,7 +107,7 @@ static void accettaConnessioni(int sfd, mappa_id map)
 	}
 }
 
-static void tryFork(void(*fun)(void *), void *args)
+static void creaFiglio(void(*fun)(void *), void *args)
 {
 	int fk = fork();
 	if(fk == 0)
@@ -154,8 +154,9 @@ static void trenoLoop(void *args)
 		}
 		else if(strcmp(buf, "ITINERARIO"))
 		{
-			int numTappe = getNumTappe(mappa[id]);
-			writeWL(fd, &numTappe, sizeof(int));
+			uint8_t numTappe = getNumTappe(mappa[id]);
+			writeWL(fd, &id, sizeof(uint8_t));
+			writeWL(fd, &numTappe, sizeof(uint8_t));
 			for(int i=0; i<numTappe; i++)
 			{
 				writeWL(fd, mappa[id], strlen(mappa[id]));
@@ -214,15 +215,18 @@ static inline uint8_t getNumTreni(mappa_id map)
 	}
 }
 
-static int getNumTappe(char **itinerario)
+static uint8_t getNumTappe(char **itinerario)
 {
-	int stazioni = 0;
+	uint8_t stazioni = 0;
+	uint8_t numTappe = 0;
 
 	do
 	{
 		if(ISSTAZIONE(*itinerario))
 			stazioni++;
-
+		numTappe++;
 		itinerario++;
 	} while (stazioni < 2);
+
+	return numTappe;
 }
