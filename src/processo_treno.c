@@ -38,18 +38,31 @@ int main(int argc, char **argv)
 
 static void init(modalita mod)
 {
-	char logpath[255] = {0};
+	//We don't want half a K sitting on the stack
+	//Let's allocate it on the heap and free it when we're done
+	char *logpath_pid = calloc(256,1);
+	char *logpath = calloc(256,1);
+
+	if(snprintf(logpath_pid, 255, "./log/pid_%d.log", getpid()) >= 255)
+	{
+		LOGE("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
+		exit(EXIT_FAILURE);
+	}
+	log_init(logpath_pid);
+
 	struct itinerario *itin;
 	rc_init(true);
 	itin = rc_getItinerario();
 
-	if(snprintf(logpath, sizeof(logpath), "./log/treno%d.log", itin->num_itinerario) >= sizeof(logpath))
+	if(snprintf(logpath, 255, "./log/treno%d.log", itin->num_itinerario) >= 255)
 	{
 		LOGE("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
 		exit(EXIT_FAILURE);
 	}
 
-	log_init(logpath);
+	log_rename(logpath_pid, logpath);
+	free(logpath_pid);
+	free(logpath);
 
 	missione(mod, itin);
 
@@ -59,7 +72,6 @@ static void init(modalita mod)
 
 static void missione(modalita mod, struct itinerario *itin)
 {
-	log_init("./log/");
 	bool okToMove, maConcessa = true;
 
 	for(int i=0; i<itin->num_tappe; i++)

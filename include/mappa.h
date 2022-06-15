@@ -28,5 +28,7 @@ struct mappa
 };
 
 mappa_id m_getMappaId(const char *nome);
+struct mappa *m_caricaDaFile(const char *path);
+void m_freeMappa(struct mappa *mappa);
 
 #endif

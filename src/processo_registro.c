@@ -1,8 +1,9 @@
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include <unistd.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -12,16 +13,25 @@
 #include "log.h"
 #include "inline_rw_utils.h"
 
-/*static char *tappe[2] =
-{
-	{"S1","S2","S3","S4","S5","S6","S7","S8"},
-	{"MA1","MA2","MA3","MA4","MA5","MA6","MA7","MA8","MA9","MA10","MA11","MA12","MA13","MA14","MA15","MA16"}
-};*/
-
 #define TRENI_MAPPA1 4
 #define TRENI_MAPPA2 5
 #define MAX_TAPPE 7
 
+/*
+static char *tappe[2] =
+{
+	{"S1","S2","S3","S4","S5","S6","S7","S8"},
+	{"MA1","MA2","MA3","MA4","MA5","MA6","MA7","MA8","MA9","MA10","MA11","MA12","MA13","MA14","MA15","MA16"}
+};
+*/
+#ifdef DEBUGMAP
+#undef TRENI_MAPPA1
+#define TRENI_MAPPA1 1
+static char *nomi_mappa1[TRENI_MAPPA1][MAX_TAPPE] =
+{
+	{"S7","MA13","MA12","MA11","MA10","MA9","S3"}
+};
+#else
 static char *nomi_mappa1[TRENI_MAPPA1][MAX_TAPPE] =
 {
 	{"S1","MA1","MA2","MA3","MA8","S6"},
@@ -29,8 +39,9 @@ static char *nomi_mappa1[TRENI_MAPPA1][MAX_TAPPE] =
 	{"S7","MA13","MA12","MA11","MA10","MA9","S3"},
 	{"S4","MA14","MA15","MA16","MA12","S8"},
 };
+#endif
 
-static char *nomi_mappa2[TRENI_MAPPA2][MAX_TAPPE] =
+static char *nomi_mappa2[TRENI_MAPPA2][MAX_TAPPE]  =
 {
 	{"S2","MA5","MA6","MA7","MA3","MA8","S6"},
 	{"S3","MA9","MA10","MA11","MA12","S8"},
@@ -89,7 +100,7 @@ static void accettaConnessioni(int sfd, mappa_id map)
 	for(;;)
 	{
 		char buf[64 + 1] = {0};
-		int clientFd = accept(sfd, &clientAddr, &clientLen);
+		int clientFd = accept(sfd, (struct sockaddr *)&clientAddr, &clientLen);
 
 		if(clientFd >= 0)
 		{
@@ -115,7 +126,7 @@ static void accettaConnessioni(int sfd, mappa_id map)
 		if(strcmp(buf, "TRAIN") == 0)
 		{
 			treni++;
-			int args[] = {clientFd, map, treni};
+			int args[] = {clientFd, map, treni - 1};
 			writeWL(clientFd, "OK", 3);
 			LOGD("A client of type TRAIN has connected\n");
 			creaFiglio(trenoLoop, args);
@@ -159,7 +170,8 @@ static void trenoLoop(void *args)
 	mappa_id map_id = (mappa_id)((int *)args)[1];
 	uint8_t id = ((int *)args)[2];
 
-	char ***mappa = (map_id == MAPPA1 ? nomi_mappa1 : nomi_mappa2);
+	//basically char* mappa[][7]
+	char *((*mappa)[7]) = (map_id == MAPPA1 ? nomi_mappa1 : nomi_mappa2);
 
 	impostaTimer(fd, 0);
 
@@ -176,7 +188,7 @@ static void trenoLoop(void *args)
 			writeWL(fd, &numTappe, sizeof(uint8_t));
 			for(int i=0; i<numTappe; i++)
 			{
-				writeWL(fd, mappa[id][i], strlen(mappa[id][i]));
+				writeWL(fd, (mappa[id])[i], strlen((mappa[id])[i]));
 			}
 		}
 	}
@@ -190,7 +202,8 @@ static void superLoop(void *args)
 	mappa_id map_id = (mappa_id)((int *)args)[1];
 	uint8_t id = ((int *)args)[2];
 
-	char ***mappa = (map_id == MAPPA1 ? nomi_mappa1 : nomi_mappa2);
+	//basically char* mappa[][7]
+	char *((*mappa)[7]) = (map_id == MAPPA1 ? nomi_mappa1 : nomi_mappa2);
 
 	impostaTimer(fd, 0);
 
@@ -205,7 +218,7 @@ static void superLoop(void *args)
 		{
 			LOGD("A SUPER client has issued a TRENI command\n");
 			int numTreni = getNumTreni(map_id);
-			writeWL(fd, &numTreni, sizeof(int));
+			writeWL(fd, (char *)&numTreni, sizeof(int));
 		}
 		else
 		{
@@ -231,7 +244,7 @@ static int creaSocket(void)
 	sfd = socket(AF_UNIX, SOCK_STREAM, 0);
 	LOGD("Created socket with file desciptor %d\n", sfd);
 	
-	r = bind(sfd, &serverAddr, sizeof(struct sockaddr_un));
+	r = bind(sfd, (struct sockaddr *)&serverAddr, sizeof(struct sockaddr_un));
 	LOGD("bind() returned %d\n", r);
 	r = listen(sfd, 5);
 	LOGD("listen() returned %d\n", r);
@@ -241,7 +254,6 @@ static int creaSocket(void)
 
 static void impostaTimer(int sfd, int time)
 {
-
 	struct timeval rdtimeout =
 	{
 		.tv_sec = time
@@ -270,10 +282,8 @@ static inline uint8_t getNumTreni(mappa_id map)
 }
 
 ///TODO: Broken probably!
-static uint8_t getNumTappe(char *itinerario[])
+static uint8_t getNumTappe(char **itinerario)
 {
-
-		LOGD("calculating num stops\n");
 	uint8_t stazioni = 0;
 	uint8_t numTappe = 0;
 
@@ -281,7 +291,6 @@ static uint8_t getNumTappe(char *itinerario[])
 
 	do
 	{
-		LOGD("itin %s\n", itinerario[i]);
 		if(ISSTAZIONE(itinerario[i]))
 		{
 			stazioni++;

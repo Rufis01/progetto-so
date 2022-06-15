@@ -11,11 +11,14 @@ typedef enum
 	LOG_INFO,
 	LOG_WARN,
 	LOG_ERROR,
-	LOG_DEBUG
+	LOG_DEBUG,
+	LOG_INVALID_LEVEL
 } log_level;
 
+void log_setLogLevel(log_level level);
 void log_init(const char *filepath);
 void log_printf(log_level level, const char *format, ...);
+void log_rename(const char *oldname, const char *newname);
 void log_fini(void);
 
 #endif

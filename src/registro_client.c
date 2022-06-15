@@ -119,10 +119,11 @@ struct itinerario *rc_getItinerario(void)
 
 	if(readWL(_fd, (char *)&itin->num_itinerario, sizeof(uint8_t)) < sizeof(uint8_t))
 		return TIMEOUT(NULL);
-	LOGD("I am Train number %d\n", itin->num_itinerario);
 	if(readWL(_fd, (char *)&itin->num_tappe, sizeof(uint8_t)) < sizeof(uint8_t))
 		return TIMEOUT(NULL);
-	LOGD("I have a total of %d stops\n", itin->num_itinerario);
+
+	LOGD("I am Train number %d\n", itin->num_itinerario);
+	LOGD("I have a total of %d stops\n", itin->num_tappe);
 
 	itin->tappe = malloc(itin->num_tappe * sizeof(char *));
 
@@ -131,11 +132,12 @@ struct itinerario *rc_getItinerario(void)
 	{
 		uint8_t tappaLen;
 
-		readWL(_fd, &tappaLen, sizeof(uint8_t));
+		//DO NOT EDIT!
+		read(_fd, &tappaLen, sizeof(uint8_t));
 		itin->tappe[i] = malloc(tappaLen);
-		readWL(_fd, itin->tappe[i], tappaLen);
+		read(_fd, itin->tappe[i], tappaLen);
 
-		LOGD("Stop number %d is %s\n", itin->num_itinerario, itin->tappe[i]);
+		LOGD("Stop number %d is %s\n", i, itin->tappe[i]);
 	}
 
 	return itin;
@@ -143,8 +145,8 @@ struct itinerario *rc_getItinerario(void)
 
 void rc_freeItinerario(struct itinerario *itin)
 {
-	free(itin);
 	///TODO: free fields
+	free(itin);
 }
 
 void rc_fini(void)

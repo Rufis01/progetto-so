@@ -4,7 +4,10 @@
         "*.h": "c",
         "system_error": "c",
         "cmath": "c",
-        "*.tcc": "c"
+        "*.tcc": "c",
+        "filesystem": "c",
+        "__config": "c",
+        "chrono": "c"
     },
     "editor.tabSize": 4,
     "editor.insertSpaces": false,

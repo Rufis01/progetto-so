@@ -28,6 +28,7 @@ int main(int argc, char **argv)
 	if(argc <= 2)
 		usoErrato();
 		//EXITS
+	log_setLogLevel(LOG_INFO);
 	log_init("./log/padre_treni.log");
 	creaBoe();
 
