@@ -132,6 +132,7 @@ static bool occupaSegmento(const char* segmento)
 	//Se è vuoto occupalo
 	if(segmentoOccupato == '0')
 		write(fd, "1", 1);
+	///TODO: e svuota il precedente
 
 	//Rilascia il lock (anche se dovrebbe venir rilasciato sulla close)
 	LOGD("Controllare che close rilascia il lock!\n");

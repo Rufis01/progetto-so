@@ -1,11 +1,16 @@
-CPPFLAGS := -I./include #CPP stands for C PreProcessor
+CPPFLAGS := -I./include -DDEBUG#CPP stands for C PreProcessor
 
 SRC := ./src
 OBJ := ./obj
 BIN := ./bin
 INC := ./include
 
-all : padre_treni processo_treno
+all : padre_treni processo_treno registro
+
+registro : $(SRC)/processo_registro.c\
+           $(INC)/mappa.h $(INC)/log.h $(INC)/inline_rw_utils.h\
+		   mappa.o log.o
+	$(CC) $(CPPFLAGS) $(SRC)/processo_registro.c $(OBJ)/mappa.o $(OBJ)/log.o -o $(BIN)/$@
 
 padre_treni : $(SRC)/padre_treni.c\
               $(INC)/registro_client.h $(INC)/mappa.h $(INC)/log.h\
@@ -14,7 +19,7 @@ padre_treni : $(SRC)/padre_treni.c\
 
 processo_treno : $(SRC)/processo_treno.c\
                  $(INC)/modalita.h $(INC)/mappa.h\
-		 registro_client.o rbc_client.o mappa.o log.o
+		         registro_client.o rbc_client.o mappa.o log.o
 	$(CC) $(CPPFLAGS) $(SRC)/processo_treno.c $(OBJ)/registro_client.o $(OBJ)/rbc_client.o $(OBJ)/mappa.o $(OBJ)/log.o -o $(BIN)/$@
 
 registro_client.o : $(SRC)/registro_client.c\

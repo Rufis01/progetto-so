@@ -1,6 +1,8 @@
 #ifndef MAPPA_H
 #define MAPPA_H
 
+#include <stdint.h>
+
 #define NUM_SEGMENTI 16
 
 #define ISSTAZIONE(seg) (seg[0] == 'S')
@@ -14,14 +16,14 @@ typedef enum
 
 struct itinerario
 {
-	unsigned short num_itinerario;
-	unsigned short num_tappe;
+	uint8_t num_itinerario;
+	uint8_t num_tappe;
 	char **tappe;
 };
 
 struct mappa
 {
-	unsigned short treni;
+	uint8_t treni;
 	struct itinerario *itinerari;
 };
 

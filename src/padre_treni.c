@@ -13,11 +13,15 @@
 
 ///TODO: unlink sockets
 ///TODO: usoErrato ok??
+///TODO: rivedere ordine di controllo. Controllare subito che mappa sia ok?
+
 static void usoErrato(void);
 static void creaBoe(void);
 static void ETCS1(char* mappa);
 static void ETCS2(char* mappa);
 static void ETCS2_RBC(char *mappa);
+
+static void spawnRegistro(char *mappa);
 
 int main(int argc, char **argv)
 {
@@ -51,11 +55,11 @@ static void creaBoe(void)
 	char segpath[32] = {0};
 
 	mkdir("./boe", 0777);
-	umask(0666);
+	//umask(0666);
 
 	for(int i = 0; i < NUM_SEGMENTI; i++)
 	{
-		if(snprintf(segpath, sizeof(segpath), "./boe/MA%d.log", i+1) >= sizeof(segpath))
+		if(snprintf(segpath, sizeof(segpath), "./boe/MA%d", i+1) >= sizeof(segpath))
 		{
 			LOGE("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
 			exit(EXIT_FAILURE);
@@ -65,6 +69,8 @@ static void creaBoe(void)
 		write(fd, "0", 1);
 		close(fd);
 	}
+
+	//umask(0777);
 }
 
 static void ETCS1(char *mappa)
@@ -73,6 +79,8 @@ static void ETCS1(char *mappa)
 	if(map == MAPPA_NON_VALIDA)
 		usoErrato();
 		//EXITS
+	spawnRegistro(mappa);
+
 	rc_init(false);
 	int treni = rc_getNumeroTreni();
 	rc_fini();
@@ -102,6 +110,7 @@ static void ETCS2(char *mappa)
 	if(map == MAPPA_NON_VALIDA)
 		usoErrato();
 		//EXITS
+	spawnRegistro(mappa);
 	
 	int treni = rc_getNumeroTreni();
 
@@ -130,6 +139,17 @@ static void ETCS2_RBC(char *mappa)
 
 	if(fork() == 0)		//Sono il figlio
 		exit(0);//execve();
+}
+
+static void spawnRegistro(char *mappa)
+{
+	if(fork() == 0)
+	{
+		execl("./registro", "registro", mappa, (char *)NULL);
+		exit(EXIT_SUCCESS);
+	}
+
+	sleep(2);
 }
 
 

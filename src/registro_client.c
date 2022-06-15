@@ -15,7 +15,7 @@
 #include "inline_rw_utils.h"
 
 #define HELLO(isTrain) ((isTrain) ? "TRAIN" : "SUPER")
-#define OK ("OKE")
+#define OK ("OK")
 #define GET_TRENI ("TRENI")
 #define GET_ITINERARIO ("ITINERARIO")
 
@@ -28,7 +28,6 @@
 
 
 static int _fd;
-static bool _isTrain;
 
 /* Si presuppone che la socket sia in nella sottodirectory sock, a sua volta presente nella PWD
 	
@@ -78,9 +77,8 @@ bool rc_init(bool isTrain)
 	}
 
 	//Comunica al registro che l'interlocutore è un treno
-	uint8_t len = sizeof(HELLO(_isTrain));
-	writeWL(_fd, (char *)&len, 1);
-	writeWL(_fd, HELLO(_isTrain), len);
+	uint8_t len = strlen(HELLO(isTrain));
+	writeWL(_fd, HELLO(isTrain), len);
 
 	char buf[8] = {0};
 
@@ -119,10 +117,12 @@ struct itinerario *rc_getItinerario(void)
 
 	writeWL(_fd, GET_ITINERARIO, sizeof(GET_ITINERARIO));
 
-	if(readWL(_fd, (char *)&itin->num_itinerario, sizeof(unsigned short)) < sizeof(unsigned short))
+	if(readWL(_fd, (char *)&itin->num_itinerario, sizeof(uint8_t)) < sizeof(uint8_t))
 		return TIMEOUT(NULL);
-	if(readWL(_fd, (char *)&itin->num_tappe, sizeof(unsigned short)) < sizeof(unsigned short))
+	LOGD("I am Train number %d\n", itin->num_itinerario);
+	if(readWL(_fd, (char *)&itin->num_tappe, sizeof(uint8_t)) < sizeof(uint8_t))
 		return TIMEOUT(NULL);
+	LOGD("I have a total of %d stops\n", itin->num_itinerario);
 
 	itin->tappe = malloc(itin->num_tappe * sizeof(char *));
 
@@ -131,9 +131,11 @@ struct itinerario *rc_getItinerario(void)
 	{
 		uint8_t tappaLen;
 
-		read(_fd, &tappaLen, sizeof(uint8_t));
+		readWL(_fd, &tappaLen, sizeof(uint8_t));
 		itin->tappe[i] = malloc(tappaLen);
-		read(_fd, itin->tappe[i], tappaLen);
+		readWL(_fd, itin->tappe[i], tappaLen);
+
+		LOGD("Stop number %d is %s\n", itin->num_itinerario, itin->tappe[i]);
 	}
 
 	return itin;

@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include <unistd.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -19,8 +20,9 @@
 
 #define TRENI_MAPPA1 4
 #define TRENI_MAPPA2 5
+#define MAX_TAPPE 7
 
-static char **nomi_mappa1[TRENI_MAPPA1] =
+static char *nomi_mappa1[TRENI_MAPPA1][MAX_TAPPE] =
 {
 	{"S1","MA1","MA2","MA3","MA8","S6"},
 	{"S2","MA5","MA6","MA7","MA3","MA8","S6"},
@@ -28,7 +30,7 @@ static char **nomi_mappa1[TRENI_MAPPA1] =
 	{"S4","MA14","MA15","MA16","MA12","S8"},
 };
 
-static char **nomi_mappa2[TRENI_MAPPA2] =
+static char *nomi_mappa2[TRENI_MAPPA2][MAX_TAPPE] =
 {
 	{"S2","MA5","MA6","MA7","MA3","MA8","S6"},
 	{"S3","MA9","MA10","MA11","MA12","S8"},
@@ -39,6 +41,13 @@ static char **nomi_mappa2[TRENI_MAPPA2] =
 
 static int creaSocket(void);
 static void servizio(void);
+static void accettaConnessioni(int sfd, mappa_id map);
+static void creaFiglio(void(*fun)(void *), void *args);
+static void trenoLoop(void *args);
+static void superLoop(void *args);
+static inline uint8_t getNumTreni(mappa_id map);
+static uint8_t getNumTappe(char **itinerario);
+static void impostaTimer(int sfd, int time);
 
 /* processo_registro richiede come parametro la mappa */
 int main(int argc, char **argv)
@@ -48,15 +57,19 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	mappa_id map = m_getMappaId(argv[2]);
+	mappa_id map = m_getMappaId(argv[1]);
 
 	if(map == MAPPA_NON_VALIDA)
 	{
 		exit(EXIT_FAILURE);
 	}
 
+	log_init("./log/registro.log");
+
 	int sfd = creaSocket();
 	accettaConnessioni(sfd, map);
+
+	log_fini();
 
 	//crea socket AF_UNIX (unica)
 	//mettiti in ascolto
@@ -70,13 +83,26 @@ int main(int argc, char **argv)
 static void accettaConnessioni(int sfd, mappa_id map)
 {
 	struct sockaddr_un clientAddr;
-	int clientLen;
-	int treni = 0;
+	socklen_t clientLen = sizeof(struct sockaddr_un);
+	uint8_t treni = 0;
 
-	char buf[64 + 1] = {0};
 	for(;;)
 	{
-		int clientFd = accept (sfd, &clientAddr, &clientLen);
+		char buf[64 + 1] = {0};
+		int clientFd = accept(sfd, &clientAddr, &clientLen);
+
+		if(clientFd >= 0)
+		{
+			LOGD("A client has connected with file descriptor %d\n", clientFd);
+		}
+		else
+		{
+			LOGE("accept() returned an error and errno was set to %d\n", errno);
+			perror("accettaConnessioni");
+			continue;
+		}
+
+		impostaTimer(clientFd, 5);
 
 		if(readWL(clientFd, buf, sizeof(buf) - 1) == 0)
 		{
@@ -86,17 +112,19 @@ static void accettaConnessioni(int sfd, mappa_id map)
 			continue;
 		}
 
-		if(strcmp(buf, "TRENO"))
+		if(strcmp(buf, "TRAIN") == 0)
 		{
 			treni++;
 			int args[] = {clientFd, map, treni};
 			writeWL(clientFd, "OK", 3);
+			LOGD("A client of type TRAIN has connected\n");
 			creaFiglio(trenoLoop, args);
 		}
-		else if(strcmp(buf, "SUPER"))
+		else if(strcmp(buf, "SUPER") == 0)
 		{
 			int args[] = {clientFd, map};
 			writeWL(clientFd, "OK", 3);
+			LOGD("A client of type SUPER has connected\n");
 			creaFiglio(superLoop, &args);
 		}
 		else
@@ -129,37 +157,26 @@ static void trenoLoop(void *args)
 
 	int fd = ((int *)args)[0];
 	mappa_id map_id = (mappa_id)((int *)args)[1];
-	int id = ((int *)args)[2];
+	uint8_t id = ((int *)args)[2];
 
-	char **mappa[] = map_id == MAPPA1 ? nomi_mappa1 : nomi_mappa2;
+	char ***mappa = (map_id == MAPPA1 ? nomi_mappa1 : nomi_mappa2);
 
-	struct timeval rdtimeout = {0};
-	if(setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, /*(const char*)*/&rdtimeout, sizeof rdtimeout) < 0)
-	{
-		LOGE("Impossibile impostare la socket!\n");
-		perror("setsockopt");
-		exit(EXIT_FAILURE);
-	}
-
-	char buf[16 + 1] = {0};
+	impostaTimer(fd, 0);
 
 	for(;;)
 	{
+		char buf[16 + 1] = {0};
 		readWL(fd, buf, sizeof(buf) - 1);
 		
-		if(strcmp(buf, "TRENI"))
+		if(strcmp(buf, "ITINERARIO") == 0)
 		{
-			int numTreni = getNumTreni(map_id);
-			writeWL(fd, &numTreni, sizeof(int));
-		}
-		else if(strcmp(buf, "ITINERARIO"))
-		{
+			LOGD("A TRAIN client has issued a ITINERARIO command\n");
 			uint8_t numTappe = getNumTappe(mappa[id]);
 			writeWL(fd, &id, sizeof(uint8_t));
 			writeWL(fd, &numTappe, sizeof(uint8_t));
 			for(int i=0; i<numTappe; i++)
 			{
-				writeWL(fd, mappa[id], strlen(mappa[id]));
+				writeWL(fd, mappa[id][i], strlen(mappa[id][i]));
 			}
 		}
 	}
@@ -167,26 +184,68 @@ static void trenoLoop(void *args)
 
 static void superLoop(void *args)
 {
-	(void) args;
+	///TODO: refactor this abomination
+
+	int fd = ((int *)args)[0];
+	mappa_id map_id = (mappa_id)((int *)args)[1];
+	uint8_t id = ((int *)args)[2];
+
+	char ***mappa = (map_id == MAPPA1 ? nomi_mappa1 : nomi_mappa2);
+
+	impostaTimer(fd, 0);
+
+	for(;;)
+	{
+		char buf[16 + 1] = {0};
+
+		if(readWL(fd, buf, sizeof(buf) - 1) <= 0)
+			break;
+		
+		if(strcmp(buf, "TRENI") == 0)
+		{
+			LOGD("A SUPER client has issued a TRENI command\n");
+			int numTreni = getNumTreni(map_id);
+			writeWL(fd, &numTreni, sizeof(int));
+		}
+		else
+		{
+			LOGD("A SUPER client as issued an unknown command: %s\n", buf);
+		}
+	}
 }
 
 static int creaSocket(void)
 {
-	int sfd;
+	int sfd, r;
 	struct sockaddr_un serverAddr =
 	{
 		.sun_family = AF_UNIX,
 		.sun_path = "./sock/registro"
 	};
 
-	struct timeval rdtimeout =
-	{
-		.tv_sec = 5
-	};
-
 	mkdir("./sock", 0777);
 
+	r = unlink(serverAddr.sun_path);
+	LOGD("unlink() returned %d\n", r);
+
 	sfd = socket(AF_UNIX, SOCK_STREAM, 0);
+	LOGD("Created socket with file desciptor %d\n", sfd);
+	
+	r = bind(sfd, &serverAddr, sizeof(struct sockaddr_un));
+	LOGD("bind() returned %d\n", r);
+	r = listen(sfd, 5);
+	LOGD("listen() returned %d\n", r);
+
+	return sfd;
+}
+
+static void impostaTimer(int sfd, int time)
+{
+
+	struct timeval rdtimeout =
+	{
+		.tv_sec = time
+	};
 
 	//Imposta un timeout
 	if(setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, /*(const char*)*/&rdtimeout, sizeof rdtimeout) < 0)
@@ -195,11 +254,6 @@ static int creaSocket(void)
 		perror("registro_client");
 		exit(EXIT_FAILURE);
 	}
-	
-	bind(sfd, &serverAddr, sizeof(struct sockaddr_un));
-	listen(sfd, 5);
-
-	return sfd;
 }
 
 static inline uint8_t getNumTreni(mappa_id map)
@@ -215,18 +269,31 @@ static inline uint8_t getNumTreni(mappa_id map)
 	}
 }
 
-static uint8_t getNumTappe(char **itinerario)
+///TODO: Broken probably!
+static uint8_t getNumTappe(char *itinerario[])
 {
+
+		LOGD("calculating num stops\n");
 	uint8_t stazioni = 0;
 	uint8_t numTappe = 0;
 
+	int i=0;
+
 	do
 	{
-		if(ISSTAZIONE(*itinerario))
+		LOGD("itin %s\n", itinerario[i]);
+		if(ISSTAZIONE(itinerario[i]))
+		{
 			stazioni++;
+			LOGD("%s is a station\n", itinerario[i]);
+		}
+		else
+		{
+			LOGD("%s is not a station\n", itinerario[i]);
+		}
 		numTappe++;
-		itinerario++;
-	} while (stazioni < 2);
+		i++;
+	} while (stazioni < 2 && i< MAX_TAPPE);
 
 	return numTappe;
 }
