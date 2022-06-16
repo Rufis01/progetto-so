@@ -10,9 +10,12 @@
 #include "rbc_client.h"
 #include "log.h"
 
+#define MAX_RETRIES 5
+
 static void init(modalita mod);
 static void missione(modalita mod, struct itinerario *itin);
 static bool occupaSegmento(const char* segmento);
+static void liberaSegmento(const char* segmento);
 
 /* processo_treno richiede come parametro la modalità (ETCS1/2)*/
 int main(int argc, char **argv)
@@ -23,7 +26,7 @@ int main(int argc, char **argv)
 	{
 		exit(EXIT_FAILURE);
 	}
-	
+
 	if(strcmp(argv[1], "ETCS1") == 0)
 		mod = ETCS1;
 	else if(strcmp(argv[1], "ETCS2") == 0)
@@ -73,10 +76,18 @@ static void init(modalita mod)
 static void missione(modalita mod, struct itinerario *itin)
 {
 	bool okToMove, maConcessa = true;
+	int fail = 0;
 
 	for(int i=0; i<itin->num_tappe; i++)
 	{
+		if(fail >= MAX_RETRIES)
+		{
+			LOGW("The train could not move. Aborting!\n");
+			exit(EXIT_FAILURE);
+		}
+
 		char *tappaCorrente = itin->tappe[i];
+		LOGI("%s %d\n", tappaCorrente, time(NULL));
 		//Prova ad occupare il segmento/stazione:
 		//Se ETCS2 richiedi MA
 		if(mod == ETCS2)
@@ -87,15 +98,31 @@ static void missione(modalita mod, struct itinerario *itin)
 		else
 			okToMove = true;
 
-		//Se ETCS2 comunica esito movimento
-		if(mod == ETCS2)
-			rbc_comunicaEsitoMovimento(maConcessa == true && okToMove == true);
-		
+
+		if(maConcessa == true && okToMove == true)
+		{
+			fail = 0;
+			if(i>0)
+			{
+				char *tappaPrecedente = itin->tappe[i-1];
+				liberaSegmento(tappaPrecedente);
+			}
+			//Se ETCS2 comunica esito movimento
+			if(mod == ETCS2)
+				rbc_comunicaEsitoMovimento(true);
+		}
+		else
+		{
+			i--;
+			fail++;
+			//Se ETCS2 comunica esito movimento
+			if(mod == ETCS2)
+				rbc_comunicaEsitoMovimento(false);
+		}
+
 		//Dormi 2 secondi
 		sleep(2);
 	}
-
-	rc_freeItinerario(itin);
 }
 
 static bool occupaSegmento(const char* segmento)
@@ -116,7 +143,7 @@ static bool occupaSegmento(const char* segmento)
 		exit(EXIT_FAILURE);
 	}
 
-	if(snprintf(filepath, sizeof(filepath), "./segmenti/%s", segmento) >= sizeof(filepath))
+	if(snprintf(filepath, sizeof(filepath), "./boe/%s", segmento) >= sizeof(filepath))
 	{
 		LOGE("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
 		exit(EXIT_FAILURE);
@@ -144,14 +171,45 @@ static bool occupaSegmento(const char* segmento)
 	//Se è vuoto occupalo
 	if(segmentoOccupato == '0')
 		write(fd, "1", 1);
-	///TODO: e svuota il precedente
 
-	//Rilascia il lock (anche se dovrebbe venir rilasciato sulla close)
-	LOGD("Controllare che close rilascia il lock!\n");
+	//Rilascia il lock
 	lock.l_type = F_UNLCK;
 	fcntl(fd, F_SETLKW, &lock);
 
 	close(fd);
 
-	return segmentoOccupato;
+	return segmentoOccupato == '0';
+}
+
+static void liberaSegmento(const char* segmento)
+{
+	int fd;
+	char filepath[256], segmentoOccupato;
+
+	if(!segmento)
+	{
+		LOGE("Argomento non valido!\n");
+		exit(EXIT_FAILURE);
+	}
+
+	if(ISSTAZIONE(segmento))
+		return;
+
+	if(snprintf(filepath, sizeof(filepath), "./boe/%s", segmento) >= sizeof(filepath))
+	{
+		LOGE("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
+		exit(EXIT_FAILURE);
+	}
+
+	fd = open(filepath, O_RDWR);
+
+	if(fd < 0)
+	{
+		LOGE("Impossibile aprire il file!\n");
+		exit(EXIT_FAILURE);
+	}
+
+	write(fd, "0", 1);
+
+	close(fd);
 }

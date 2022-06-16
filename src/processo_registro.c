@@ -24,6 +24,7 @@ static char *tappe[2] =
 	{"MA1","MA2","MA3","MA4","MA5","MA6","MA7","MA8","MA9","MA10","MA11","MA12","MA13","MA14","MA15","MA16"}
 };
 */
+
 #ifdef DEBUGMAP
 #undef TRENI_MAPPA1
 #define TRENI_MAPPA1 1
@@ -97,6 +98,8 @@ static void accettaConnessioni(int sfd, mappa_id map)
 	socklen_t clientLen = sizeof(struct sockaddr_un);
 	uint8_t treni = 0;
 
+	impostaTimer(sfd, 20);
+
 	for(;;)
 	{
 		char buf[64 + 1] = {0};
@@ -108,6 +111,12 @@ static void accettaConnessioni(int sfd, mappa_id map)
 		}
 		else
 		{
+			if(errno == EWOULDBLOCK)
+			{
+				LOGW("No new connection in 20 seconds. Exiting...\n");
+				exit(EXIT_SUCCESS);
+			}
+
 			LOGE("accept() returned an error and errno was set to %d\n", errno);
 			perror("accettaConnessioni");
 			continue;
@@ -178,8 +187,9 @@ static void trenoLoop(void *args)
 	for(;;)
 	{
 		char buf[16 + 1] = {0};
-		readWL(fd, buf, sizeof(buf) - 1);
-		
+		if(readWL(fd, buf, sizeof(buf) - 1) <= 0)
+			break;
+
 		if(strcmp(buf, "ITINERARIO") == 0)
 		{
 			LOGD("A TRAIN client has issued a ITINERARIO command\n");
@@ -213,7 +223,7 @@ static void superLoop(void *args)
 
 		if(readWL(fd, buf, sizeof(buf) - 1) <= 0)
 			break;
-		
+
 		if(strcmp(buf, "TRENI") == 0)
 		{
 			LOGD("A SUPER client has issued a TRENI command\n");
@@ -243,7 +253,7 @@ static int creaSocket(void)
 
 	sfd = socket(AF_UNIX, SOCK_STREAM, 0);
 	LOGD("Created socket with file desciptor %d\n", sfd);
-	
+
 	r = bind(sfd, (struct sockaddr *)&serverAddr, sizeof(struct sockaddr_un));
 	LOGD("bind() returned %d\n", r);
 	r = listen(sfd, 5);

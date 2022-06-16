@@ -28,7 +28,7 @@ int main(int argc, char **argv)
 	if(argc <= 2)
 		usoErrato();
 		//EXITS
-	log_setLogLevel(LOG_INFO);
+	log_setLogLevel(LOG_DEBUG);
 	log_init("./log/padre_treni.log");
 	creaBoe();
 
@@ -56,7 +56,7 @@ static void creaBoe(void)
 	char segpath[32] = {0};
 
 	mkdir("./boe", 0777);
-	//umask(0666);
+	umask(0777-0666);
 
 	for(int i = 0; i < NUM_SEGMENTI; i++)
 	{
@@ -71,7 +71,7 @@ static void creaBoe(void)
 		close(fd);
 	}
 
-	//umask(0777);
+	umask(0777-0777);
 }
 
 static void ETCS1(char *mappa)
@@ -156,6 +156,6 @@ static void spawnRegistro(char *mappa)
 
 static void usoErrato(void)
 {
-	puts("");
+	puts("sciuli!");
 	exit(EXIT_FAILURE);
 }
