@@ -14,6 +14,7 @@
 ///TODO: unlink sockets
 ///TODO: usoErrato ok??
 ///TODO: rivedere ordine di controllo. Controllare subito che mappa sia ok?
+///TODO: kill registro
 
 static void usoErrato(void);
 static void creaBoe(void);
@@ -28,8 +29,8 @@ int main(int argc, char **argv)
 	if(argc <= 2)
 		usoErrato();
 		//EXITS
-	log_setLogLevel(LOG_DEBUG);
-	log_init("./log/padre_treni.log");
+	log_setLogLevel(LOG_INFO);
+	//log_init("./log/padre_treni.log");
 	creaBoe();
 
 	if(strcmp(argv[1], "ETCS1") == 0)
@@ -47,7 +48,7 @@ int main(int argc, char **argv)
 			//EXITS
 	}
 
-	log_fini();
+	//log_fini();
 	return 0;
 }
 
@@ -62,7 +63,7 @@ static void creaBoe(void)
 	{
 		if(snprintf(segpath, sizeof(segpath), "./boe/MA%d", i+1) >= sizeof(segpath))
 		{
-			LOGE("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
+			LOGF("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
 			exit(EXIT_FAILURE);
 		}
 
@@ -105,20 +106,29 @@ static void ETCS1(char *mappa)
 	}
 }
 
+///TODO: merge ETCS1 and ETCS2?
+
 static void ETCS2(char *mappa)
 {
 	mappa_id map = m_getMappaId(mappa);
 	if(map == MAPPA_NON_VALIDA)
 		usoErrato();
 		//EXITS
+	
+	///TODO: should be spawned by RBC?
 	spawnRegistro(mappa);
 	
+	rc_init(false);
 	int treni = rc_getNumeroTreni();
+	rc_fini();
 
 	for(int i=0; i<treni; i++)
 	{
 		if(fork() == 0)		//Sono il figlio
-			exit(0);//execve();
+		{
+			execl("./processo_treno", "processo_treno", "ETCS2", (char *)NULL);
+			exit(EXIT_SUCCESS);
+		}
 	}
 
 	for(int i=0; i<treni; i++)
@@ -133,13 +143,14 @@ static void ETCS2(char *mappa)
 
 static void ETCS2_RBC(char *mappa)
 {
+	printf("RBC!\n");
 	mappa_id map = m_getMappaId(mappa);
 	if(map == MAPPA_NON_VALIDA)
 		usoErrato();
 		//EXITS
 
-	if(fork() == 0)		//Sono il figlio
-		exit(0);//execve();
+	execl("./rbc", "rbc", mappa, (char *)NULL);
+	exit(EXIT_FAILURE);
 }
 
 static void spawnRegistro(char *mappa)
@@ -149,7 +160,7 @@ static void spawnRegistro(char *mappa)
 		execl("./registro", "registro", mappa, (char *)NULL);
 		exit(EXIT_SUCCESS);
 	}
-
+	///TODO: add proper synchronization
 	sleep(2);
 }
 

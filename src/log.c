@@ -8,8 +8,8 @@
 static FILE *_fd = 0;
 static log_level _level;
 
-static char* log_levelString(log_level level);
-static log_level log_levelValue(char *level);
+static inline char* log_levelString(log_level level);
+static inline log_level log_levelValue(char *level);
 
 void log_setLogLevel(log_level level)
 {
@@ -22,6 +22,7 @@ void log_init(const char *filename)
 	_fd = filename ? fopen(filename, "w") : stdout;
 }
 
+///TODO: maybe use a bitmask instead?
 void log_printf(log_level level, const char *format, ...)
 {
 	if(level > _level) return;
@@ -50,7 +51,7 @@ void log_fini(void)
 	fclose(_fd);
 }
 
-static char* log_levelString(log_level level)
+static inline char* log_levelString(log_level level)
 {
 	switch (level)
 	{
@@ -67,7 +68,7 @@ static char* log_levelString(log_level level)
 	}
 }
 
-static log_level log_levelValue(char *level)
+static inline log_level log_levelValue(char *level)
 {
 	if(!level)
 		return LOG_INVALID_LEVEL;

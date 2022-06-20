@@ -12,7 +12,7 @@
 
 #define MAX_RETRIES 5
 
-static void init(modalita mod);
+static void start(modalita mod);
 static void missione(modalita mod, struct itinerario *itin);
 static bool occupaSegmento(const char* segmento);
 static void liberaSegmento(const char* segmento);
@@ -36,10 +36,10 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	init(mod);
+	start(mod);
 }
 
-static void init(modalita mod)
+static void start(modalita mod)
 {
 	//We don't want half a K sitting on the stack
 	//Let's allocate it on the heap and free it when we're done
@@ -48,7 +48,7 @@ static void init(modalita mod)
 
 	if(snprintf(logpath_pid, 255, "./log/pid_%d.log", getpid()) >= 255)
 	{
-		LOGE("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
+		LOGF("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
 		exit(EXIT_FAILURE);
 	}
 	log_init(logpath_pid);
@@ -57,9 +57,9 @@ static void init(modalita mod)
 	rc_init(true);
 	itin = rc_getItinerario();
 
-	if(snprintf(logpath, 255, "./log/treno%d.log", itin->num_itinerario) >= 255)
+	if(snprintf(logpath, 255, "./log/T%d.log", itin->num_itinerario) >= 255)
 	{
-		LOGE("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
+		LOGF("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -67,8 +67,12 @@ static void init(modalita mod)
 	free(logpath_pid);
 	free(logpath);
 
+	rbc_init(itin->num_itinerario);
+
 	missione(mod, itin);
 
+	rbc_fini();
+	rc_fini();
 	rc_freeItinerario(itin);
 	log_fini();
 }
@@ -82,14 +86,14 @@ static void missione(modalita mod, struct itinerario *itin)
 	{
 		if(fail >= MAX_RETRIES)
 		{
-			LOGW("The train could not move. Aborting!\n");
+			LOGF("The train could not move. Aborting!\n");
 			exit(EXIT_FAILURE);
 		}
 
 		char *tappaCorrente = itin->tappe[i];
+		///TODO: appropriate info logging
 		LOGI("%s %d\n", tappaCorrente, time(NULL));
-		//Prova ad occupare il segmento/stazione:
-		//Se ETCS2 richiedi MA
+		
 		if(mod == ETCS2)
 			maConcessa = rbc_richiediMA(tappaCorrente);
 
@@ -107,16 +111,14 @@ static void missione(modalita mod, struct itinerario *itin)
 				char *tappaPrecedente = itin->tappe[i-1];
 				liberaSegmento(tappaPrecedente);
 			}
-			//Se ETCS2 comunica esito movimento
-			if(mod == ETCS2)
+			if(mod == ETCS2 && maConcessa)
 				rbc_comunicaEsitoMovimento(true);
 		}
 		else
 		{
 			i--;
 			fail++;
-			//Se ETCS2 comunica esito movimento
-			if(mod == ETCS2)
+			if(mod == ETCS2 && maConcessa)
 				rbc_comunicaEsitoMovimento(false);
 		}
 
@@ -139,13 +141,13 @@ static bool occupaSegmento(const char* segmento)
 
 	if(!segmento)
 	{
-		LOGE("Argomento non valido!\n");
+		LOGF("Argomento non valido!\n");
 		exit(EXIT_FAILURE);
 	}
 
 	if(snprintf(filepath, sizeof(filepath), "./boe/%s", segmento) >= sizeof(filepath))
 	{
-		LOGE("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
+		LOGF("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -153,14 +155,14 @@ static bool occupaSegmento(const char* segmento)
 
 	if(fd < 0)
 	{
-		LOGE("Impossibile aprire il file!\n");
+		LOGF("Impossibile aprire il file!\n");
 		exit(EXIT_FAILURE);
 	}
 
 	//Ottieni il lock
 	if(fcntl(fd, F_SETLKW, &lock) < 0)
 	{
-		LOGE("Impossibile aquisire il lock!\n");
+		LOGF("Impossibile aquisire il lock!\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -184,11 +186,11 @@ static bool occupaSegmento(const char* segmento)
 static void liberaSegmento(const char* segmento)
 {
 	int fd;
-	char filepath[256], segmentoOccupato;
+	char filepath[256];
 
 	if(!segmento)
 	{
-		LOGE("Argomento non valido!\n");
+		LOGF("Argomento non valido!\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -197,7 +199,7 @@ static void liberaSegmento(const char* segmento)
 
 	if(snprintf(filepath, sizeof(filepath), "./boe/%s", segmento) >= sizeof(filepath))
 	{
-		LOGE("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
+		LOGF("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -205,7 +207,7 @@ static void liberaSegmento(const char* segmento)
 
 	if(fd < 0)
 	{
-		LOGE("Impossibile aprire il file!\n");
+		LOGF("Impossibile aprire il file!\n");
 		exit(EXIT_FAILURE);
 	}
 

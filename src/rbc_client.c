@@ -1,22 +1,57 @@
+#include <stdint.h>
 
-#include "log.h"
 #include "rbc_client.h"
 
-bool rbc_init(void)
+#include "log.h"
+#include "socket.h"
+#include "inline_rw_utils.h"
+
+static int _fd;
+
+bool rbc_init(uint8_t tid)
 {
-	LOGD("called\n");
-	return true;
+	_fd = connettiSocketUnix("./sock/rbc");
+	if(_fd < 0)
+		return false;
+
+	char buf[8] = {0};
+
+	writeWL(_fd, &tid, sizeof(tid));
+	readWL(_fd, buf, sizeof(buf));
+
+	if(strcmp(buf, "OK") == 0)
+	{
+		LOGD("Connesso!\n");
+		return true;
+	}
+	
+	return false;
 }
 
-bool rbc_richiediMA(char *segmento)
+bool rbc_richiediMA(const char *segmento)
 {
-	LOGD("called with arg segmento: %s\n", segmento);
-	return true;
+	char buf[8] = {0};
+
+	writeWL(_fd, segmento, strlen(segmento));
+	readWL(_fd, buf, sizeof(buf));
+
+	if(strcmp(buf, "OK") == 0)
+	{
+		LOGD("MA concessa!\n");
+		return true;
+	}
+
+	LOGD("MA non concessa! %s\n", buf);
+	
+	return false;
 }
 
 void rbc_comunicaEsitoMovimento(bool esito)
 {
-	LOGD("called with arg esito: %d\n", esito);
+	if(esito == true)
+		writeWL(_fd, "OK", sizeof("OK"));
+	else
+		writeWL(_fd, "KO", sizeof("KO"));
 }
 
 void rbc_fini(void)

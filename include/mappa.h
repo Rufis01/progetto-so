@@ -1,11 +1,18 @@
 #ifndef MAPPA_H
 #define MAPPA_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define NUM_SEGMENTI 16
 
 #define ISSTAZIONE(seg) (seg[0] == 'S')
+
+struct posizione
+{
+	bool stazione;
+	uint8_t id;
+};
 
 typedef enum
 {
@@ -28,7 +35,8 @@ struct mappa
 };
 
 mappa_id m_getMappaId(const char *nome);
-struct mappa *m_caricaDaFile(const char *path);
-void m_freeMappa(struct mappa *mappa);
+uint8_t map_getNumeroStazioni(struct mappa *mappa);
+uint8_t map_getNumeroBoe(struct mappa *mappa);
+bool map_getPosFromSeg(struct posizione *pos, const char *buf);
 
 #endif

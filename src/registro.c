@@ -12,6 +12,7 @@
 #include "mappa.h"
 #include "log.h"
 #include "inline_rw_utils.h"
+#include "socket.h"
 
 #define TRENI_MAPPA1 4
 #define TRENI_MAPPA2 5
@@ -51,15 +52,12 @@ static char *nomi_mappa2[TRENI_MAPPA2][MAX_TAPPE]  =
 	{"S5","MA4","MA3","MA2","MA1","S1"},
 };
 
-static int creaSocket(void);
-static void servizio(void);
 static void accettaConnessioni(int sfd, mappa_id map);
 static void creaFiglio(void(*fun)(void *), void *args);
 static void trenoLoop(void *args);
 static void superLoop(void *args);
 static inline uint8_t getNumTreni(mappa_id map);
 static uint8_t getNumTappe(char **itinerario);
-static void impostaTimer(int sfd, int time);
 
 /* processo_registro richiede come parametro la mappa */
 int main(int argc, char **argv)
@@ -78,14 +76,11 @@ int main(int argc, char **argv)
 
 	log_init("./log/registro.log");
 
-	int sfd = creaSocket();
+	int sfd = creaSocketUnix("./sock/registro");
 	accettaConnessioni(sfd, map);
 
 	log_fini();
 
-	//crea socket AF_UNIX (unica)
-	//mettiti in ascolto
-	//rispondi n volte con l'itinerario i
 	///TODO: muori?
 
 	return 0;
@@ -94,8 +89,6 @@ int main(int argc, char **argv)
 
 static void accettaConnessioni(int sfd, mappa_id map)
 {
-	struct sockaddr_un clientAddr;
-	socklen_t clientLen = sizeof(struct sockaddr_un);
 	uint8_t treni = 0;
 
 	impostaTimer(sfd, 20);
@@ -103,7 +96,7 @@ static void accettaConnessioni(int sfd, mappa_id map)
 	for(;;)
 	{
 		char buf[64 + 1] = {0};
-		int clientFd = accept(sfd, (struct sockaddr *)&clientAddr, &clientLen);
+		int clientFd = accept(sfd, NULL, NULL);
 
 		if(clientFd >= 0)
 		{
@@ -145,7 +138,7 @@ static void accettaConnessioni(int sfd, mappa_id map)
 			int args[] = {clientFd, map};
 			writeWL(clientFd, "OK", 3);
 			LOGD("A client of type SUPER has connected\n");
-			creaFiglio(superLoop, &args);
+			creaFiglio(superLoop, args);
 		}
 		else
 		{
@@ -166,7 +159,7 @@ static void creaFiglio(void(*fun)(void *), void *args)
 	else if(fk < 0)
 	{
 		perror("fork");
-		LOGE("fork() failed\n");
+		LOGF("fork() failed\n");
 		exit(EXIT_FAILURE);
 	}
 }
@@ -179,7 +172,7 @@ static void trenoLoop(void *args)
 	mappa_id map_id = (mappa_id)((int *)args)[1];
 	uint8_t id = ((int *)args)[2];
 
-	//basically char* mappa[][7]
+	//basically char *mappa[][7]
 	char *((*mappa)[7]) = (map_id == MAPPA1 ? nomi_mappa1 : nomi_mappa2);
 
 	impostaTimer(fd, 0);
@@ -210,9 +203,8 @@ static void superLoop(void *args)
 
 	int fd = ((int *)args)[0];
 	mappa_id map_id = (mappa_id)((int *)args)[1];
-	uint8_t id = ((int *)args)[2];
 
-	//basically char* mappa[][7]
+	//basically char *mappa[][7]
 	char *((*mappa)[7]) = (map_id == MAPPA1 ? nomi_mappa1 : nomi_mappa2);
 
 	impostaTimer(fd, 0);
@@ -230,51 +222,28 @@ static void superLoop(void *args)
 			int numTreni = getNumTreni(map_id);
 			writeWL(fd, (char *)&numTreni, sizeof(int));
 		}
+		else if(strcmp(buf, "MAPPA") == 0)
+		{
+			LOGD("A SUPER client has issued a MAPPA command\n");
+			uint8_t treni = getNumTreni(map_id);
+
+			writeWL(fd, &treni, sizeof(uint8_t));
+
+			for(uint8_t i=0; i<treni;i++)
+			{
+				uint8_t numTappe = getNumTappe(mappa[i]);
+				writeWL(fd, &i, sizeof(uint8_t));
+				writeWL(fd, &numTappe, sizeof(uint8_t));
+				for(int j=0; j<numTappe; j++)
+				{
+					writeWL(fd, (mappa[i])[j], strlen((mappa[i])[j]));
+				}
+			}
+		}
 		else
 		{
 			LOGD("A SUPER client as issued an unknown command: %s\n", buf);
 		}
-	}
-}
-
-static int creaSocket(void)
-{
-	int sfd, r;
-	struct sockaddr_un serverAddr =
-	{
-		.sun_family = AF_UNIX,
-		.sun_path = "./sock/registro"
-	};
-
-	mkdir("./sock", 0777);
-
-	r = unlink(serverAddr.sun_path);
-	LOGD("unlink() returned %d\n", r);
-
-	sfd = socket(AF_UNIX, SOCK_STREAM, 0);
-	LOGD("Created socket with file desciptor %d\n", sfd);
-
-	r = bind(sfd, (struct sockaddr *)&serverAddr, sizeof(struct sockaddr_un));
-	LOGD("bind() returned %d\n", r);
-	r = listen(sfd, 5);
-	LOGD("listen() returned %d\n", r);
-
-	return sfd;
-}
-
-static void impostaTimer(int sfd, int time)
-{
-	struct timeval rdtimeout =
-	{
-		.tv_sec = time
-	};
-
-	//Imposta un timeout
-	if(setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, /*(const char*)*/&rdtimeout, sizeof rdtimeout) < 0)
-	{
-		LOGE("Impossibile impostare la socket!\n");
-		perror("registro_client");
-		exit(EXIT_FAILURE);
 	}
 }
 
@@ -291,7 +260,6 @@ static inline uint8_t getNumTreni(mappa_id map)
 	}
 }
 
-///TODO: Broken probably!
 static uint8_t getNumTappe(char **itinerario)
 {
 	uint8_t stazioni = 0;

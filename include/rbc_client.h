@@ -3,8 +3,8 @@
 
 #include <stdbool.h>
 
-bool rbc_init(void);
-bool rbc_richiediMA(char *segmento);
+bool rbc_init(uint8_t tid);
+bool rbc_richiediMA(const char *segmento);
 void rbc_comunicaEsitoMovimento(bool esito);
 void rbc_fini(void);
 
