@@ -12,7 +12,12 @@ all : dir padre_treni processo_treno registro rbc
 zip : 
 	tar -czf progetto.tar.gz makefile include src .vscode
 
-dir : obj/ bin/
+clean : 
+	rm -rf bin
+	rm -rf obj
+	rm -f progetto.tar.gz
+
+dir : 
 	mkdir -p obj
 	mkdir -p bin
 
