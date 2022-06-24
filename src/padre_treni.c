@@ -4,12 +4,15 @@
 
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/types.h>
 
 #include "mappa.h"
 #include "registro_client.h"
 #include "log.h"
+#include "socket.h"
 
 ///TODO: unlink sockets
 ///TODO: usoErrato ok??
@@ -23,14 +26,19 @@ static void ETCS2(char* mappa);
 static void ETCS2_RBC(char *mappa);
 
 static void spawnRegistro(char *mappa);
+static pid_t getRBCpid(void);
+
+static void aspettaTreni(int numero);
 
 int main(int argc, char **argv)
 {
 	if(argc <= 2)
 		usoErrato();
 		//EXITS
-	log_setLogLevel(LOG_INFO);
-	//log_init("./log/padre_treni.log");
+	mkdir("./log", 0777);
+
+	log_setLogLevel(LOG_DEBUG);
+	log_init((argc <= 3) ? "./log/padre_treni.log" : "./log/padre_rbc.log");
 	creaBoe();
 
 	if(strcmp(argv[1], "ETCS1") == 0)
@@ -48,7 +56,8 @@ int main(int argc, char **argv)
 			//EXITS
 	}
 
-	//log_fini();
+	log_fini();
+
 	return 0;
 }
 
@@ -83,7 +92,9 @@ static void ETCS1(char *mappa)
 		//EXITS
 	spawnRegistro(mappa);
 
-	rc_init(false);
+	while(!rc_init(false))
+		sleep(1);
+
 	int treni = rc_getNumeroTreni();
 	rc_fini();
 
@@ -95,15 +106,7 @@ static void ETCS1(char *mappa)
 			exit(EXIT_SUCCESS);
 		}
 	}
-
-	for(int i=0; i<treni; i++)
-	{
-		int status;
-		if(!wait(&status))
-		{
-			perror("padre_treni:");
-		}
-	}
+	aspettaTreni(treni);
 }
 
 ///TODO: merge ETCS1 and ETCS2?
@@ -115,10 +118,14 @@ static void ETCS2(char *mappa)
 		usoErrato();
 		//EXITS
 	
-	///TODO: should be spawned by RBC?
+
 	spawnRegistro(mappa);
+
+	pid_t rbcpid = getRBCpid();
 	
-	rc_init(false);
+	while(!rc_init(false))
+		sleep(1);
+
 	int treni = rc_getNumeroTreni();
 	rc_fini();
 
@@ -131,19 +138,12 @@ static void ETCS2(char *mappa)
 		}
 	}
 
-	for(int i=0; i<treni; i++)
-	{
-		int status;
-		if(!wait(&status))
-		{
-			perror("padre_treni:");
-		}
-	}
+	aspettaTreni(treni);
+	kill(rbcpid, SIGUSR2);
 }
 
 static void ETCS2_RBC(char *mappa)
 {
-	printf("RBC!\n");
 	mappa_id map = m_getMappaId(mappa);
 	if(map == MAPPA_NON_VALIDA)
 		usoErrato();
@@ -160,8 +160,23 @@ static void spawnRegistro(char *mappa)
 		execl("./registro", "registro", mappa, (char *)NULL);
 		exit(EXIT_SUCCESS);
 	}
-	///TODO: add proper synchronization
-	sleep(2);
+}
+
+static pid_t getRBCpid(void)
+{
+	int sfd;
+	pid_t pid;
+	do
+	{
+		sfd = connettiSocketUnix("./sock/rbc");
+		sleep(1);
+	} while (sfd < 0);
+	
+	LOGD("RBC socket fd is %d\n", sfd);
+	read(sfd, &pid, sizeof(pid_t));
+	close(sfd);
+	LOGD("RBC PID is %d\n", pid);
+	return pid;
 }
 
 
@@ -169,4 +184,30 @@ static void usoErrato(void)
 {
 	puts("sciuli!");
 	exit(EXIT_FAILURE);
+}
+
+static void aspettaTreni(int numero)
+{
+	sigset_t sigmask;
+	siginfo_t info;
+	int *pid = calloc(numero, sizeof(int));
+
+	sigemptyset(&sigmask);
+	sigaddset(&sigmask, SIGUSR1);
+
+	sigprocmask(SIG_BLOCK, &sigmask, NULL);
+
+	for(int i=0; i<numero; i++)
+	{
+		sigwaitinfo(&sigmask, &info);
+		kill(info.si_pid, SIGUSR1);
+		pid[i] = info.si_pid;
+		LOGD("PID %d ha terminato\n", info.si_pid);
+	} 	
+
+	sleep(1);
+
+	for(int i=0; i<numero; i++)
+		kill(pid[i], SIGKILL);
+
 }

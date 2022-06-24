@@ -20,25 +20,25 @@ struct stato_treni
 {
 	int n;
 	int *fd;
+	bool *primaRichiesta;
 	struct posizione *pos;
-	struct posizione *prevpos;
 };
 
 static struct stato_treni *accettaConnessioni(int sfd);
 static void servizio(struct stato_treni *stato, mappa_id mappa);
 
 static int availFd(struct pollfd *clients, int numClients, short events);
+static int remFd(struct pollfd *clients, int numClients, short events);
 static inline void pollSetUp(struct stato_treni *stato, struct pollfd *pfd);
 static inline int getTrainId(struct stato_treni *stato, int fd);
-static bool checkAuth(struct stato_treni *stato, struct mappa *mappa, struct posizione *pos, uint8_t tid, const char *buf);
-static inline void updateStato(struct stato_treni *stato, struct posizione *pos, uint8_t tid);
+static bool checkAuth(struct stato_treni *stato, struct mappa *mappa, struct posizione *pos, uint8_t tid);
+static inline void updateStato(struct stato_treni *stato, uint8_t *segmenti[2], struct posizione *pos, uint8_t tid);
 
 /* rbc richiede come parametro la mappa */
 int main(int argc, char **argv)
 {
 	if(argc != 2)
 	{
-		printf("%d\n", argc);
 		exit(EXIT_FAILURE);
 	}
 
@@ -46,20 +46,28 @@ int main(int argc, char **argv)
 
 	if(map == MAPPA_NON_VALIDA)
 	{
-		printf("%s\n", argv[1]);
 		exit(EXIT_FAILURE);
 	}
 
 	log_init("./log/rbc.log");
-	rc_init(false);
+	while(!rc_init(false))
+		sleep(1);
 
 	int sfd = creaSocketUnix("./sock/rbc");
+
+	pid_t pid = getpid();
+	int fd = accept(sfd, NULL, NULL);	//padre_treni
+	write(fd, &pid, sizeof(pid_t));
+	close(fd);
+
 
 	struct stato_treni *stato = accettaConnessioni(sfd);
 
 	servizio(stato, map);
+	
+	close(sfd);
 
-	///TODO:free stato
+	///TODO: free stato
 	rc_fini();
 
 	log_fini();
@@ -71,8 +79,8 @@ static struct stato_treni *accettaConnessioni(int sfd)
 
 	struct stato_treni *stato = malloc(sizeof(struct stato_treni));
 	stato->fd = calloc(numTreni, sizeof(int));
+	stato->primaRichiesta = calloc(numTreni, sizeof(bool));
 	stato->pos = calloc(numTreni, sizeof(struct posizione));
-	stato->prevpos = calloc(numTreni, sizeof(struct posizione));
 	stato->n = numTreni;
 
 	for(int i=0; i<numTreni; i++)
@@ -82,9 +90,10 @@ static struct stato_treni *accettaConnessioni(int sfd)
 		if(clientFd >= 0)
 		{
 			uint8_t trainId;
-			readWL(clientFd, &trainId, sizeof(uint8_t));
+			readWL(clientFd, (char *)&trainId, sizeof(uint8_t));
 			writeWL(clientFd, "OK", sizeof("OK"));
 			stato->fd[trainId] = clientFd;
+			stato->primaRichiesta[trainId] = true;
 			LOGD("Train %d has connected with file descriptor %d\n", trainId, clientFd);
 		}
 		else
@@ -101,9 +110,6 @@ static struct stato_treni *accettaConnessioni(int sfd)
 		}
 	}
 
-	LOGW("WARNING! This is potentially buggy!\n");
-	close(sfd);
-
 	return stato;
 }
 
@@ -119,6 +125,8 @@ static void servizio(struct stato_treni *stato, mappa_id mappa)
 	
 	segmenti[0] = calloc(numBoe, sizeof(uint8_t));
 	segmenti[1] = calloc(numStazioni, sizeof(uint8_t));
+
+	LOGD("Boe %d, Stazioni %d\n", numBoe, numStazioni);
 	
 	struct pollfd *clients = calloc(stato->n, sizeof(struct pollfd));
 	pollSetUp(stato, clients);
@@ -131,8 +139,13 @@ static void servizio(struct stato_treni *stato, mappa_id mappa)
 		int fd = availFd(clients, stato->n, POLLIN);
 		if(fd < 0)
 		{
-			LOGW("poll returned, but no file is ready for reading!\n");
-			continue;	//This should never happen
+			if(remFd(clients, stato->n, POLLNVAL | POLLHUP | POLLERR) == stato->n)	//All trains terminated
+			{
+				sleep(1);
+				continue;
+			}
+			LOGD("poll() returned, but no file is ready for reading! Was a socket closed?\n");
+			continue;
 		}
 
 		//Read segment and identify train
@@ -153,10 +166,10 @@ static void servizio(struct stato_treni *stato, mappa_id mappa)
 		struct posizione pos;
 		map_getPosFromSeg(&pos, buf);
 
-		if(!checkAuth(stato, map, &pos, tid, buf))
+		if(!checkAuth(stato, map, &pos, tid))
 		{
 			LOGW("Il treno %d ha tentato di accedere ad un segmento che non fa parte del suo itinerario o che non e la sua prossima tappa!\n", tid);
-			writeWL(fd, "KO", sizeof("KO"));
+			writeWL(fd, "NO", sizeof("NO"));
 			continue;
 		}
 
@@ -168,7 +181,7 @@ static void servizio(struct stato_treni *stato, mappa_id mappa)
 		}
 		else
 		{
-			if(segmenti[pos.stazione][pos.id] == 0)
+			if(segmenti[pos.stazione][pos.id - 1] == 0)
 			{
 				writeWL(fd, "OK", sizeof("OK"));
 			}
@@ -194,9 +207,11 @@ static void servizio(struct stato_treni *stato, mappa_id mappa)
 			continue;
 		}
 		
-		updateStato(stato, &pos, tid);
+		updateStato(stato, segmenti, &pos, tid);
 
 	}
+
+	//Questo punto non viene mai raggiunto, SIGUSR2 fa terminare il processo
 
 	free(segmenti[0]);
 	free(segmenti[1]);
@@ -216,6 +231,20 @@ static int availFd(struct pollfd *clients, int numClients, short events)
 	}
 
 	return -1;
+}
+
+static int remFd(struct pollfd *clients, int numClients, short events)
+{
+	int closed = 0;
+	for(int i=0; i<numClients; i++)
+	{
+		if(((clients[i].revents & events) != 0) && clients[i].fd >= 0)
+			clients[i].fd = -clients[i].fd;
+		if(clients[i].fd < 0)
+			closed++;
+	}
+
+	return closed;
 }
 
 static inline void pollSetUp(struct stato_treni *stato, struct pollfd *pfd)
@@ -238,17 +267,47 @@ static inline int getTrainId(struct stato_treni *stato, int fd)
 	return -1;
 }
 
-static bool checkAuth(struct stato_treni *stato, struct mappa *mappa, struct posizione *pos, uint8_t tid, const char *buf)
+static bool checkAuth(struct stato_treni *stato, struct mappa *mappa, struct posizione *pos, uint8_t tid)
 {
-	LOGW("Unimplemented!\n");
-	return true;
+	struct itinerario *itin = &mappa->itinerari[tid];
+	struct posizione *ppos = &stato->pos[tid];	//Posizione precedente
+
+	struct posizione tpos;	//Posizione temporanea
+
+	if(stato->primaRichiesta[tid])
+	{
+		map_getPosFromSeg(&tpos, itin->tappe[0]);
+		return map_cmpPos(&tpos, pos);
+	}
+
+	for(int i = 0; i<itin->num_tappe - 1; i++)
+	{
+		map_getPosFromSeg(&tpos, itin->tappe[i]);
+		if(map_cmpPos(&tpos, ppos))
+		{
+			map_getPosFromSeg(&tpos, itin->tappe[i + 1]);
+			if(map_cmpPos(&tpos, pos) == true)
+				return true;
+			//altrimenti continua a cercare
+		}
+	}
+
+	return false;
 }
 
-static inline void updateStato(struct stato_treni *stato, struct posizione *pos, uint8_t tid)
+static inline void updateStato(struct stato_treni *stato, uint8_t *segmenti[2], struct posizione *pos, uint8_t tid)
 {
-	memcpy(&stato->prevpos[tid], &stato->pos[tid], sizeof(struct posizione));
+	struct posizione *ppos = &stato->pos[tid];
+	if(stato->primaRichiesta[tid])
+	{
+		stato->primaRichiesta[tid] = false;
+	}
+	else
+	{
+		segmenti[ppos->stazione][ppos->id - 1]--;
+		LOGD("Il treno %d libera il segmento %s%d; adesso ci sono %d treni\n", tid, ppos->stazione ? "S" : "MA", ppos->id, segmenti[ppos->stazione][ppos->id - 1]);
+	}
+	segmenti[pos->stazione][pos->id - 1]++;
+	LOGD("Il treno %d occupa il segmento %s%d; adesso ci sono %d treni\n", tid, pos->stazione ? "S" : "MA", pos->id, segmenti[pos->stazione][pos->id - 1]);
 	memcpy(&stato->pos[tid], pos, sizeof(struct posizione));
 }
-
-
-

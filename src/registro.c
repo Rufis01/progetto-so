@@ -172,7 +172,7 @@ static void trenoLoop(void *args)
 	mappa_id map_id = (mappa_id)((int *)args)[1];
 	uint8_t id = ((int *)args)[2];
 
-	//basically char *mappa[][7]
+	//basically char *mappa[?][7]
 	char *((*mappa)[7]) = (map_id == MAPPA1 ? nomi_mappa1 : nomi_mappa2);
 
 	impostaTimer(fd, 0);
@@ -187,8 +187,8 @@ static void trenoLoop(void *args)
 		{
 			LOGD("A TRAIN client has issued a ITINERARIO command\n");
 			uint8_t numTappe = getNumTappe(mappa[id]);
-			writeWL(fd, &id, sizeof(uint8_t));
-			writeWL(fd, &numTappe, sizeof(uint8_t));
+			writeWL(fd, (char *)&id, sizeof(uint8_t));
+			writeWL(fd, (char *)&numTappe, sizeof(uint8_t));
 			for(int i=0; i<numTappe; i++)
 			{
 				writeWL(fd, (mappa[id])[i], strlen((mappa[id])[i]));
@@ -204,7 +204,7 @@ static void superLoop(void *args)
 	int fd = ((int *)args)[0];
 	mappa_id map_id = (mappa_id)((int *)args)[1];
 
-	//basically char *mappa[][7]
+	//basically char *mappa[?][7]
 	char *((*mappa)[7]) = (map_id == MAPPA1 ? nomi_mappa1 : nomi_mappa2);
 
 	impostaTimer(fd, 0);
@@ -227,13 +227,13 @@ static void superLoop(void *args)
 			LOGD("A SUPER client has issued a MAPPA command\n");
 			uint8_t treni = getNumTreni(map_id);
 
-			writeWL(fd, &treni, sizeof(uint8_t));
+			writeWL(fd, (char *)&treni, sizeof(uint8_t));
 
 			for(uint8_t i=0; i<treni;i++)
 			{
 				uint8_t numTappe = getNumTappe(mappa[i]);
-				writeWL(fd, &i, sizeof(uint8_t));
-				writeWL(fd, &numTappe, sizeof(uint8_t));
+				writeWL(fd, (char *)&i, sizeof(uint8_t));
+				writeWL(fd, (char *)&numTappe, sizeof(uint8_t));
 				for(int j=0; j<numTappe; j++)
 				{
 					writeWL(fd, (mappa[i])[j], strlen((mappa[i])[j]));

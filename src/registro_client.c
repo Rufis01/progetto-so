@@ -21,14 +21,6 @@
 #define GET_ITINERARIO ("ITINERARIO")
 #define GET_MAPPA ("MAPPA")
 
-///TODO: replace with inline function?
-#define TIMEOUT(ret)\
-(({\
-	LOGE("Time out!\n");\
-	rc_fini();\
-}), (ret))						//Evaluates to ret
-
-
 static int _fd;
 
 /* Si presuppone che la socket sia in nella sottodirectory sock, a sua volta presente nella PWD
@@ -46,8 +38,6 @@ bool rc_init(bool isTrain)
 	_fd = connettiSocketUnix("./sock/registro");
 	if(_fd < 0)
 		return false;
-	
-	impostaTimer(_fd, 5);
 
 	//Comunica al registro che l'interlocutore è un treno
 	uint8_t len = strlen(HELLO(isTrain));
@@ -55,8 +45,7 @@ bool rc_init(bool isTrain)
 
 	char buf[8] = {0};
 
-	if(readWL(_fd, buf, sizeof(OK)) < sizeof(OK))
-		return TIMEOUT(false);
+	readWL(_fd, buf, sizeof(OK));
 
 	if(strcmp(buf, OK) != 0)
 	{
@@ -75,8 +64,7 @@ int rc_getNumeroTreni(void)
 
 	writeWL(_fd, GET_TRENI, sizeof(GET_TRENI));
 
-	if(readWL(_fd, (char *)&numTreni, sizeof(int)) < sizeof(int))
-		return TIMEOUT(-1);
+	readWL(_fd, (char *)&numTreni, sizeof(int));
 
 	return numTreni;
 }
@@ -90,10 +78,8 @@ struct itinerario *rc_getItinerario(void)
 
 	writeWL(_fd, GET_ITINERARIO, sizeof(GET_ITINERARIO));
 
-	if(readWL(_fd, (char *)&itin->num_itinerario, sizeof(uint8_t)) < sizeof(uint8_t))
-		return TIMEOUT(NULL);
-	if(readWL(_fd, (char *)&itin->num_tappe, sizeof(uint8_t)) < sizeof(uint8_t))
-		return TIMEOUT(NULL);
+	readWL(_fd, (char *)&itin->num_itinerario, sizeof(uint8_t));
+	readWL(_fd, (char *)&itin->num_tappe, sizeof(uint8_t));
 
 	LOGD("I am Train number %d\n", itin->num_itinerario);
 	LOGD("I have a total of %d stops\n", itin->num_tappe);
@@ -124,7 +110,7 @@ struct mappa *rc_getMappa(void)
 
 	writeWL(_fd, GET_MAPPA, sizeof(GET_MAPPA));
 
-	readWL(_fd, mappa->treni, sizeof(uint8_t));
+	readWL(_fd, (char *)&mappa->treni, sizeof(uint8_t));
 
 	mappa->itinerari = calloc(mappa->treni, sizeof(struct itinerario));
 
@@ -132,22 +118,24 @@ struct mappa *rc_getMappa(void)
 	{
 		struct itinerario *itin = &mappa->itinerari[i];
 
-		if(readWL(_fd, (char *)&itin->num_itinerario, sizeof(uint8_t)) < sizeof(uint8_t))
-			return TIMEOUT(NULL);
-		if(readWL(_fd, (char *)&itin->num_tappe, sizeof(uint8_t)) < sizeof(uint8_t))
-			return TIMEOUT(NULL);
+		readWL(_fd, (char *)&itin->num_itinerario, sizeof(uint8_t));
+		readWL(_fd, (char *)&itin->num_tappe, sizeof(uint8_t));
 
 		LOGD("Itinerario %d ha %d tappe\n", itin->num_itinerario, itin->num_tappe);
 
 		itin->tappe = malloc(itin->num_tappe * sizeof(char *));
 
-		///TODO: (timeout and) error checks
+		///TODO: error checks
 		for(int j=0; j<itin->num_tappe; j++)
 		{
 			uint8_t tappaLen;
 
 			read(_fd, &tappaLen, sizeof(uint8_t));
+			
 			itin->tappe[j] = malloc(tappaLen);
+			if(!itin->tappe[j])
+				return NULL;
+
 			read(_fd, itin->tappe[j], tappaLen);
 
 			LOGD("Stop #%d is %s\n", j, itin->tappe[j]);

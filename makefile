@@ -1,4 +1,5 @@
-CPPFLAGS := -I./include -DDEBUG -DDEBUGMAP #CPP stands for C PreProcessor
+#CPP stands fo C PreProcessor
+CPPFLAGS := -I./include -DDEBUG
 CFLAGS := -Wall -Wpedantic
 
 SRC := ./src
@@ -6,7 +7,14 @@ OBJ := ./obj
 BIN := ./bin
 INC := ./include
 
-all : padre_treni processo_treno registro rbc
+all : dir padre_treni processo_treno registro rbc
+
+zip : 
+      tar -czf makefile include src .vscode
+
+dir : obj/ bin/
+	mkdir -p obj
+	mkdir -p bin
 
 rbc : $(SRC)/rbc.c\
       $(INC)/registro_client.h $(INC)/socket.h $(INC)/mappa.h $(INC)/log.h\
@@ -19,7 +27,7 @@ registro : $(SRC)/registro.c\
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SRC)/registro.c $(OBJ)/socket.o $(OBJ)/mappa.o $(OBJ)/log.o -o $(BIN)/$@
 
 padre_treni : $(SRC)/padre_treni.c\
-              $(INC)/registro_client.h $(INC)/mappa.h $(INC)/log.h\
+              $(INC)/registro_client.h $(INC)/mappa.h $(INC)/socket.h $(INC)/log.h\
               registro_client.o socket.o mappa.o log.o
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SRC)/padre_treni.c $(OBJ)/registro_client.o $(OBJ)/socket.o $(OBJ)/mappa.o $(OBJ)/log.o -o $(BIN)/$@
 
@@ -48,4 +56,4 @@ mappa.o : $(SRC)/mappa.c\
           $(INC)/mappa.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $(SRC)/mappa.c -o $(OBJ)/$@
 
-.PHONY: all
+.PHONY: all dir

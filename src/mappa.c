@@ -1,7 +1,9 @@
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "mappa.h"
+#include "log.h"
 
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 
@@ -22,7 +24,7 @@ uint8_t map_getNumeroStazioni(struct mappa *mappa)
 {
 	struct posizione pos;
 	uint8_t stazioni = 0;
-	for(int i = 0; i<mappa->treni; mappa++)
+	for(int i = 0; i<mappa->treni; i++)
 	{
 		int numTappe = mappa->itinerari[i].num_tappe;
 		char **tappe = mappa->itinerari[i].tappe;
@@ -33,6 +35,8 @@ uint8_t map_getNumeroStazioni(struct mappa *mappa)
 				stazioni = MAX(stazioni, pos.id);
 		}
 	}
+
+	return stazioni;
 }
 
 uint8_t map_getNumeroBoe(struct mappa *mappa)
@@ -40,7 +44,7 @@ uint8_t map_getNumeroBoe(struct mappa *mappa)
 	struct posizione pos;
 	uint8_t boe = 0;
 	
-	for(int i = 0; i<mappa->treni; mappa++)
+	for(int i = 0; i<mappa->treni; i++)
 	{
 		int numTappe = mappa->itinerari[i].num_tappe;
 		char **tappe = mappa->itinerari[i].tappe;
@@ -51,12 +55,22 @@ uint8_t map_getNumeroBoe(struct mappa *mappa)
 				boe = MAX(boe, pos.id);
 		}
 	}
+
+	return boe;
 }
 
 bool map_getPosFromSeg(struct posizione *pos, const char *buf)
 {
+
 	pos->stazione = ISSTAZIONE(buf);
 	pos->id = atoi(buf + (pos->stazione ? 1 : 2));
 
+	//LOGD("%s isStazione: %hhd, id:%hhd\n", buf, pos->stazione, pos->id);
+
 	return pos->id != 0;
+}
+
+bool map_cmpPos(struct posizione *pos1, struct posizione *pos2)
+{
+	return pos1->id == pos2->id && pos1->stazione == pos2->stazione;
 }

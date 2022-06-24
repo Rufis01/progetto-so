@@ -1,11 +1,12 @@
 #ifndef LOG_H
 #define LOG_H
 
-#define LOGD(format, ...) (log_printf(LOG_DEBUG, "[DEBUG] " __FILE__ "@%s " format, __func__ __VA_OPT__(,)  __VA_ARGS__))
-#define LOGI(format, ...) (log_printf(LOG_INFO, "[INFO] " __FILE__ "@%s " format, __func__ __VA_OPT__(,)  __VA_ARGS__))
-#define LOGW(format, ...) (log_printf(LOG_WARN, "[WARNING] " __FILE__ "@%s " format, __func__ __VA_OPT__(,)  __VA_ARGS__))
-#define LOGE(format, ...) (log_printf(LOG_ERROR, "[ERROR] " __FILE__ "@%s " format, __func__ __VA_OPT__(,)  __VA_ARGS__))
-#define LOGF(format, ...) (log_printf(LOG_FATAL, "[FATAL] " __FILE__ "@%s " format, __func__ __VA_OPT__(,)  __VA_ARGS__))
+#define LOGD(format, ...) (log_printf(LOG_DEBUG, "[DEBUG] " __FILE__ "@%s:%d " format, __func__, __LINE__ __VA_OPT__(,)  __VA_ARGS__))
+#define LOGI(format, ...) (log_printf(LOG_INFO, "[INFO] " __FILE__ "@%s:%d " format, __func__, __LINE__ __VA_OPT__(,)  __VA_ARGS__))
+#define LOGW(format, ...) (log_printf(LOG_WARN, "[WARNING] " __FILE__ "@%s:%d " format, __func__, __LINE__ __VA_OPT__(,)  __VA_ARGS__))
+#define LOGE(format, ...) (log_printf(LOG_ERROR, "[ERROR] " __FILE__ "@%s:%d " format, __func__, __LINE__ __VA_OPT__(,)  __VA_ARGS__))
+#define LOGF(format, ...) (log_printf(LOG_FATAL, "[FATAL] " __FILE__ "@%s:%d " format, __func__, __LINE__ __VA_OPT__(,)  __VA_ARGS__))
+
 
 typedef enum
 {

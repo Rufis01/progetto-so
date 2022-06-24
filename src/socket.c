@@ -1,8 +1,11 @@
 #include <string.h>
+#include <stdio.h>
 
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/time.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "socket.h"
 
@@ -31,7 +34,7 @@ int creaSocketUnix(const char *path)
 	LOGD("unlink() returned %d\n", r);
 
 	sfd = socket(AF_UNIX, SOCK_STREAM, 0);
-	LOGD("Created socket with file desciptor %d\n", sfd);
+	LOGD("socket() returned %d\n", sfd);
 
 	r = bind(sfd, (struct sockaddr *)&serverAddr, sizeof(struct sockaddr_un));
 	LOGD("bind() returned %d\n", r);
@@ -44,7 +47,7 @@ int creaSocketUnix(const char *path)
 
 int connettiSocketUnix(const char *path)
 {
-	int sfd, r;
+	int sfd;
 	struct sockaddr_un serverAddr =
 	{
 		.sun_family = AF_UNIX,
@@ -65,7 +68,8 @@ int connettiSocketUnix(const char *path)
 	{
 		LOGE("Impossibile aprire la socket!\n");
 		perror("socket");
-		return -1;
+		close(sfd);
+		return sfd;
 	}
 
 	//Apre la socket
@@ -73,6 +77,7 @@ int connettiSocketUnix(const char *path)
 	{
 		LOGE("Impossibile connettersi alla socket!\n");
 		perror("connect");
+		close(sfd);
 		return -1;
 	}
 

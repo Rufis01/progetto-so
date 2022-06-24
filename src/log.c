@@ -6,7 +6,7 @@
 #include "log.h"
 
 static FILE *_fd = 0;
-static log_level _level;
+static log_level _level = LOG_INVALID_LEVEL;
 
 static inline char* log_levelString(log_level level);
 static inline log_level log_levelValue(char *level);

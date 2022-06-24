@@ -38,5 +38,6 @@ mappa_id m_getMappaId(const char *nome);
 uint8_t map_getNumeroStazioni(struct mappa *mappa);
 uint8_t map_getNumeroBoe(struct mappa *mappa);
 bool map_getPosFromSeg(struct posizione *pos, const char *buf);
+bool map_cmpPos(struct posizione *pos1, struct posizione *pos2);
 
 #endif

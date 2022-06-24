@@ -1,8 +1,12 @@
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
+#include <stdint.h>
+
+#include <unistd.h>
+#include <fcntl.h>
+#include <signal.h>
 
 #include "modalita.h"
 #include "mappa.h"
@@ -16,6 +20,8 @@ static void start(modalita mod);
 static void missione(modalita mod, struct itinerario *itin);
 static bool occupaSegmento(const char* segmento);
 static void liberaSegmento(const char* segmento);
+
+static void postMissione(void);
 
 /* processo_treno richiede come parametro la modalità (ETCS1/2)*/
 int main(int argc, char **argv)
@@ -67,14 +73,22 @@ static void start(modalita mod)
 	free(logpath_pid);
 	free(logpath);
 
-	rbc_init(itin->num_itinerario);
+	if(mod == ETCS2)
+		rbc_init(itin->num_itinerario);
 
 	missione(mod, itin);
 
-	rbc_fini();
+	postMissione();
+
+	if(mod == ETCS2)
+		rbc_fini();
+		
 	rc_fini();
 	rc_freeItinerario(itin);
 	log_fini();
+
+	while(true)
+		sleep(UINT32_MAX);
 }
 
 static void missione(modalita mod, struct itinerario *itin)
@@ -87,7 +101,7 @@ static void missione(modalita mod, struct itinerario *itin)
 		if(fail >= MAX_RETRIES)
 		{
 			LOGF("The train could not move. Aborting!\n");
-			exit(EXIT_FAILURE);
+			break;
 		}
 
 		char *tappaCorrente = itin->tappe[i];
@@ -123,7 +137,9 @@ static void missione(modalita mod, struct itinerario *itin)
 		}
 
 		//Dormi 2 secondi
+#ifndef FASTTRAIN
 		sleep(2);
+#endif
 	}
 }
 
@@ -214,4 +230,30 @@ static void liberaSegmento(const char* segmento)
 	write(fd, "0", 1);
 
 	close(fd);
+}
+
+// ### SEGNALI ###
+
+static void postMissione()
+{
+	int ppid = getppid();
+	sigset_t sigmask;
+
+	struct timespec timer =
+	{
+		.tv_sec = 2
+	};
+
+	sigemptyset(&sigmask);
+	sigaddset(&sigmask, SIGUSR1);
+
+	sigprocmask(SIG_BLOCK, &sigmask, NULL);
+
+	do
+	{
+		LOGD("Invio SIGUSR1 a padre_treni\n");
+		kill(ppid, SIGUSR1);
+	} while (sigtimedwait(&sigmask, NULL, &timer) != SIGUSR1);
+
+	LOGD("padre_treni ha ricevuto il mio segnale!\n");
 }

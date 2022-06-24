@@ -47,7 +47,62 @@
                 "settings": {
                     "foreground": "#FFFFFF",
                 }
+            },
+            {
+                "scope": "log.debug",
+                "settings": {
+                    "foreground": "#5abe51",
+                    "fontStyle": ""
+                }
+            },
+            {
+                "scope": "log.info",
+                "settings": {
+                    "foreground": "#3658c9",
+                    "fontStyle": ""
+                }
+            },
+            {
+                "scope": "log.warning",
+                "settings": {
+                    "foreground": "#f4ad42",
+                    "fontStyle": ""
+                }
+            },
+            {
+                "scope": "log.error",
+                "settings": {
+                    "foreground": "#af1f1f",
+                    "fontStyle": "bold"
+                }
             }
         ]
-    }
+    },
+    "logFileHighlighter.customPatterns": [
+        
+        {
+            "pattern": "(?<= )[^A-z_-]?[0-9]+(?=[ \n\t\r,;:.!?])",
+            "foreground": "#ff0000"
+        },
+        {
+            "pattern": "[A-z0-9-_]+[(][)]",
+            "foreground": "#ff4949"
+        },
+        {
+            "pattern": "[ ][A-Z]+[A-Z0-9]+(?=[ \n\t\r,;:.!?])",
+            "foreground": "#fffc49"
+        },
+        {
+            "pattern": "[\/.](.(?:[^ \n\t\r@])*)",
+            "foreground": "#696969"
+        },
+        {
+            "pattern": "(?<=[\/.](.(?:[^ \n\t\r@])*))[@](.(?:[^ \n\t\r@:])*)",
+            "foreground": "#4754a7"
+        },
+        {
+            "pattern": "(?<=(?<=[\/.](.(?:[^ \n\t\r@])*))[@](.(?:[^ \n\t\r@:])*))[:][0-9]+",
+            "foreground": "#61d2e0"
+        }
+    ]
 }

@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <string.h>
 
 #include "rbc_client.h"
 
@@ -16,7 +17,7 @@ bool rbc_init(uint8_t tid)
 
 	char buf[8] = {0};
 
-	writeWL(_fd, &tid, sizeof(tid));
+	writeWL(_fd, (char *)&tid, sizeof(tid));
 	readWL(_fd, buf, sizeof(buf));
 
 	if(strcmp(buf, "OK") == 0)
@@ -41,7 +42,7 @@ bool rbc_richiediMA(const char *segmento)
 		return true;
 	}
 
-	LOGD("MA non concessa! %s\n", buf);
+	LOGD("MA non concessa!\n");
 	
 	return false;
 }
@@ -56,5 +57,5 @@ void rbc_comunicaEsitoMovimento(bool esito)
 
 void rbc_fini(void)
 {
-	LOGD("called\n");
+	close(_fd);
 }
