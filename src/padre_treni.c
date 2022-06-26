@@ -14,7 +14,6 @@
 #include "log.h"
 #include "socket.h"
 
-///TODO: unlink sockets
 ///TODO: usoErrato ok??
 ///TODO: rivedere ordine di controllo. Controllare subito che mappa sia ok?
 ///TODO: kill registro
