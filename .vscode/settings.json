@@ -81,7 +81,7 @@
     "logFileHighlighter.customPatterns": [
         
         {
-            "pattern": "(?<= )[^A-z_-]?[0-9]+(?=[ \n\t\r,;:.!?])",
+            "pattern": "(?<= )[^A-z_]?[0-9]+(?=[ \n\t\r,;:.!?])",
             "foreground": "#ff0000"
         },
         {

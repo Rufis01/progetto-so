@@ -3,7 +3,6 @@
 #include <stdlib.h>
 
 #include "mappa.h"
-#include "log.h"
 
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 
@@ -64,8 +63,6 @@ bool map_getPosFromSeg(struct posizione *pos, const char *buf)
 
 	pos->stazione = ISSTAZIONE(buf);
 	pos->id = atoi(buf + (pos->stazione ? 1 : 2));
-
-	//LOGD("%s isStazione: %hhd, id:%hhd\n", buf, pos->stazione, pos->id);
 
 	return pos->id != 0;
 }

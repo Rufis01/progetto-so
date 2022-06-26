@@ -58,6 +58,8 @@ static void trenoLoop(void *args);
 static void superLoop(void *args);
 static inline uint8_t getNumTreni(mappa_id map);
 static uint8_t getNumTappe(char **itinerario);
+static void writeItinerario(int fd, char **itinerario, int tid);
+static void writeMappa(int fd, mappa_id map_id);
 
 /* processo_registro richiede come parametro la mappa */
 int main(int argc, char **argv)
@@ -100,18 +102,18 @@ static void accettaConnessioni(int sfd, mappa_id map)
 
 		if(clientFd >= 0)
 		{
-			LOGD("A client has connected with file descriptor %d\n", clientFd);
+			LOGD("Un client si e' connesso con file descriptor %d\n", clientFd);
 		}
 		else
 		{
 			if(errno == EWOULDBLOCK)
 			{
-				LOGW("No new connection in 20 seconds. Exiting...\n");
+				LOGW("Nessuna connessione in 20 secondi. Esco...\n");
 				exit(EXIT_SUCCESS);
 			}
 
-			LOGE("accept() returned an error and errno was set to %d\n", errno);
-			perror("accettaConnessioni");
+			LOGE("accept() ha restituito un errore; errno e' stata impostata a %d\n", errno);
+			perror("accept");
 			continue;
 		}
 
@@ -119,8 +121,8 @@ static void accettaConnessioni(int sfd, mappa_id map)
 
 		if(readWL(clientFd, buf, sizeof(buf) - 1) == 0)
 		{
-			LOGW("A client tried to connect, but no command has been recieved within 5 seconds\n");
-			LOGD("Closing the connection\n");
+			LOGW("Un client ha tentato di connettersi, ma non ha inviato niente per 5 secondi!\n");
+			LOGD("Chiudo la connessione...\n");
 			close(clientFd);
 			continue;
 		}
@@ -130,19 +132,19 @@ static void accettaConnessioni(int sfd, mappa_id map)
 			treni++;
 			int args[] = {clientFd, map, treni - 1};
 			writeWL(clientFd, "OK", 3);
-			LOGD("A client of type TRAIN has connected\n");
+			LOGD("Un client di tipo TRAIN si e' connesso\n");
 			creaFiglio(trenoLoop, args);
 		}
 		else if(strcmp(buf, "SUPER") == 0)
 		{
 			int args[] = {clientFd, map};
 			writeWL(clientFd, "OK", 3);
-			LOGD("A client of type SUPER has connected\n");
+			LOGD("Un client di tipo SUPER si e' connesso\n");
 			creaFiglio(superLoop, args);
 		}
 		else
 		{
-			LOGW("A client issued an unknown command: %s\n", buf);
+			LOGW("Un client ha inoltrato un comando sconosciuto: %s\n", buf);
 			writeWL(clientFd, "418 TEAPOT", 10);
 		}
 	}
@@ -159,14 +161,13 @@ static void creaFiglio(void(*fun)(void *), void *args)
 	else if(fk < 0)
 	{
 		perror("fork");
-		LOGF("fork() failed\n");
+		LOGF("fork() non ha avuto successo!\n");
 		exit(EXIT_FAILURE);
 	}
 }
 
 static void trenoLoop(void *args)
 {
-	///TODO: refactor this abomination
 
 	int fd = ((int *)args)[0];
 	mappa_id map_id = (mappa_id)((int *)args)[1];
@@ -185,27 +186,17 @@ static void trenoLoop(void *args)
 
 		if(strcmp(buf, "ITINERARIO") == 0)
 		{
-			LOGD("A TRAIN client has issued a ITINERARIO command\n");
-			uint8_t numTappe = getNumTappe(mappa[id]);
-			writeWL(fd, (char *)&id, sizeof(uint8_t));
-			writeWL(fd, (char *)&numTappe, sizeof(uint8_t));
-			for(int i=0; i<numTappe; i++)
-			{
-				writeWL(fd, (mappa[id])[i], strlen((mappa[id])[i]));
-			}
+			LOGD("Un client TRAIN ha inoltrato un comando ITINERARIO\n");
+			writeItinerario(fd, mappa[id], id);
 		}
 	}
 }
 
 static void superLoop(void *args)
 {
-	///TODO: refactor this abomination
-
 	int fd = ((int *)args)[0];
 	mappa_id map_id = (mappa_id)((int *)args)[1];
 
-	//basically char *mappa[?][7]
-	char *((*mappa)[7]) = (map_id == MAPPA1 ? nomi_mappa1 : nomi_mappa2);
 
 	impostaTimer(fd, 0);
 
@@ -218,31 +209,18 @@ static void superLoop(void *args)
 
 		if(strcmp(buf, "TRENI") == 0)
 		{
-			LOGD("A SUPER client has issued a TRENI command\n");
+			LOGD("Un client SUPER ha inoltrato un comando TRENI\n");
 			int numTreni = getNumTreni(map_id);
 			writeWL(fd, (char *)&numTreni, sizeof(int));
 		}
 		else if(strcmp(buf, "MAPPA") == 0)
 		{
-			LOGD("A SUPER client has issued a MAPPA command\n");
-			uint8_t treni = getNumTreni(map_id);
-
-			writeWL(fd, (char *)&treni, sizeof(uint8_t));
-
-			for(uint8_t i=0; i<treni;i++)
-			{
-				uint8_t numTappe = getNumTappe(mappa[i]);
-				writeWL(fd, (char *)&i, sizeof(uint8_t));
-				writeWL(fd, (char *)&numTappe, sizeof(uint8_t));
-				for(int j=0; j<numTappe; j++)
-				{
-					writeWL(fd, (mappa[i])[j], strlen((mappa[i])[j]));
-				}
-			}
+			LOGD("Un client SUPER ha inoltrato un comando MAPPA\n");
+			writeMappa(fd, map_id);
 		}
 		else
 		{
-			LOGD("A SUPER client as issued an unknown command: %s\n", buf);
+			LOGD("Un client SUPER ha inoltrato un comando sconosciuto: %s\n", buf);
 		}
 	}
 }
@@ -270,17 +248,34 @@ static uint8_t getNumTappe(char **itinerario)
 	do
 	{
 		if(ISSTAZIONE(itinerario[i]))
-		{
 			stazioni++;
-			LOGD("%s is a station\n", itinerario[i]);
-		}
-		else
-		{
-			LOGD("%s is not a station\n", itinerario[i]);
-		}
 		numTappe++;
 		i++;
 	} while (stazioni < 2 && i< MAX_TAPPE);
 
 	return numTappe;
+}
+
+static void writeItinerario(int fd, char **itinerario, int tid)
+{
+	uint8_t numTappe = getNumTappe(itinerario);
+	writeWL(fd, (char *)&tid, sizeof(uint8_t));
+	writeWL(fd, (char *)&numTappe, sizeof(uint8_t));
+	for(int i=0; i<numTappe; i++)
+	{
+		writeWL(fd, itinerario[i], strlen(itinerario[i]));
+	}
+}
+
+static void writeMappa(int fd, mappa_id map_id)
+{
+	char *((*mappa)[7]) = (map_id == MAPPA1 ? nomi_mappa1 : nomi_mappa2);
+	uint8_t treni = getNumTreni(map_id);
+
+	writeWL(fd, (char *)&treni, sizeof(uint8_t));
+
+	for(uint8_t i=0; i<treni;i++)
+	{
+		writeItinerario(fd, mappa[i], i);
+	}
 }

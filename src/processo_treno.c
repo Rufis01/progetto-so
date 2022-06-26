@@ -100,7 +100,7 @@ static void missione(modalita mod, struct itinerario *itin)
 	{
 		if(fail >= MAX_RETRIES)
 		{
-			LOGF("The train could not move. Aborting!\n");
+			LOGF("Il treno non è riuscito a muoversi! Annullo la missione...\n");
 			break;
 		}
 

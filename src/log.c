@@ -22,7 +22,6 @@ void log_init(const char *filename)
 	_fd = filename ? fopen(filename, "w") : stdout;
 }
 
-///TODO: maybe use a bitmask instead?
 void log_printf(log_level level, const char *format, ...)
 {
 	if(level > _level) return;

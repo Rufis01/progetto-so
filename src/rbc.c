@@ -94,18 +94,18 @@ static struct stato_treni *accettaConnessioni(int sfd)
 			writeWL(clientFd, "OK", sizeof("OK"));
 			stato->fd[trainId] = clientFd;
 			stato->primaRichiesta[trainId] = true;
-			LOGD("Train %d has connected with file descriptor %d\n", trainId, clientFd);
+			LOGD("Il treno %d si e' connesso con file descriptor %d\n", trainId, clientFd);
 		}
 		else
 		{
 			if(errno == EWOULDBLOCK)
 			{
-				LOGW("No new connection in 20 seconds. Exiting...\n");
+				LOGW("Nessuna connessione in 20 secondi. Esco...\n");
 				exit(EXIT_SUCCESS);
 			}
 
-			LOGE("accept() returned an error and errno was set to %d\n", errno);
-			perror("accettaConnessioni");
+			LOGE("accept() ha restituito un errore; errno e' stata impostata a %d\n", errno);
+			perror("accept");
 			continue;
 		}
 	}
@@ -113,7 +113,6 @@ static struct stato_treni *accettaConnessioni(int sfd)
 	return stato;
 }
 
-///TODO: Dividere??
 static void servizio(struct stato_treni *stato, mappa_id mappa)
 {
 	struct mappa *map = rc_getMappa();
@@ -144,7 +143,7 @@ static void servizio(struct stato_treni *stato, mappa_id mappa)
 				sleep(1);
 				continue;
 			}
-			LOGD("poll() returned, but no file is ready for reading! Was a socket closed?\n");
+			LOGD("poll() e' ritornata, ma nessun file e' pronto alla lettura! Una socket e' stata chiusa?\n");
 			continue;
 		}
 
@@ -173,7 +172,7 @@ static void servizio(struct stato_treni *stato, mappa_id mappa)
 			continue;
 		}
 
-		//Give permission
+		//Give permission (or not...)
 
 		if(pos.stazione)
 		{

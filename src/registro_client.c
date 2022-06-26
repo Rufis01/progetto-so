@@ -21,6 +21,8 @@
 #define GET_ITINERARIO ("ITINERARIO")
 #define GET_MAPPA ("MAPPA")
 
+static void readItinerario(struct itinerario *itin);
+
 static int _fd;
 
 /* Si presuppone che la socket sia in nella sottodirectory sock, a sua volta presente nella PWD
@@ -59,7 +61,6 @@ bool rc_init(bool isTrain)
 
 int rc_getNumeroTreni(void)
 {
-	///TODO: Short?
 	int numTreni;
 
 	writeWL(_fd, GET_TRENI, sizeof(GET_TRENI));
@@ -77,26 +78,10 @@ struct itinerario *rc_getItinerario(void)
 		return NULL;
 
 	writeWL(_fd, GET_ITINERARIO, sizeof(GET_ITINERARIO));
+	readItinerario(itin);
 
-	readWL(_fd, (char *)&itin->num_itinerario, sizeof(uint8_t));
-	readWL(_fd, (char *)&itin->num_tappe, sizeof(uint8_t));
-
-	LOGD("I am Train number %d\n", itin->num_itinerario);
-	LOGD("I have a total of %d stops\n", itin->num_tappe);
-
-	itin->tappe = malloc(itin->num_tappe * sizeof(char *));
-
-	///TODO: (timeout and) error checks
-	for(int i=0; i<itin->num_tappe; i++)
-	{
-		uint8_t tappaLen;
-
-		read(_fd, &tappaLen, sizeof(uint8_t));
-		itin->tappe[i] = malloc(tappaLen);
-		read(_fd, itin->tappe[i], tappaLen);
-
-		LOGD("Stop #%d is %s\n", i, itin->tappe[i]);
-	}
+	LOGD("Sono il treno numero %d\n", itin->num_itinerario);
+	LOGD("Ho un totale di %d tappe\n", itin->num_tappe);
 
 	return itin;
 }
@@ -118,32 +103,11 @@ struct mappa *rc_getMappa(void)
 	{
 		struct itinerario *itin = &mappa->itinerari[i];
 
-		readWL(_fd, (char *)&itin->num_itinerario, sizeof(uint8_t));
-		readWL(_fd, (char *)&itin->num_tappe, sizeof(uint8_t));
-
-		LOGD("Itinerario %d ha %d tappe\n", itin->num_itinerario, itin->num_tappe);
-
-		itin->tappe = malloc(itin->num_tappe * sizeof(char *));
-
-		///TODO: error checks
-		for(int j=0; j<itin->num_tappe; j++)
-		{
-			uint8_t tappaLen;
-
-			read(_fd, &tappaLen, sizeof(uint8_t));
-			
-			itin->tappe[j] = malloc(tappaLen);
-			if(!itin->tappe[j])
-				return NULL;
-
-			read(_fd, itin->tappe[j], tappaLen);
-
-			LOGD("Stop #%d is %s\n", j, itin->tappe[j]);
-		}
+		LOGD("Leggo l'itinerario %d\n", i);
+		readItinerario(itin);
 	}
 
 	return mappa;
-
 }
 
 void rc_freeItinerario(struct itinerario *itin)
@@ -161,4 +125,23 @@ void rc_freeMappa(struct mappa *mappa)
 void rc_fini(void)
 {
 	close(_fd);
+}
+
+static void readItinerario(struct itinerario *itin)
+{
+	readWL(_fd, (char *)&itin->num_itinerario, sizeof(uint8_t));
+	readWL(_fd, (char *)&itin->num_tappe, sizeof(uint8_t));
+	
+	itin->tappe = malloc(itin->num_tappe * sizeof(char *));
+
+	for(int i=0; i<itin->num_tappe; i++)
+	{
+		uint8_t tappaLen;
+
+		read(_fd, &tappaLen, sizeof(uint8_t));
+		itin->tappe[i] = malloc(tappaLen);
+		read(_fd, itin->tappe[i], tappaLen);
+
+		LOGD("La tappa #%d e' %s\n", i, itin->tappe[i]);
+	}
 }

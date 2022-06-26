@@ -19,6 +19,8 @@
 ///TODO: rivedere ordine di controllo. Controllare subito che mappa sia ok?
 ///TODO: kill registro
 
+static void init(bool rbc);
+
 static void usoErrato(void);
 static void creaBoe(void);
 static void ETCS1(char* mappa);
@@ -29,17 +31,14 @@ static void spawnRegistro(char *mappa);
 static pid_t getRBCpid(void);
 
 static void aspettaTreni(int numero);
+static void cleanup();
 
 int main(int argc, char **argv)
 {
 	if(argc <= 2)
 		usoErrato();
-		//EXITS
-	mkdir("./log", 0777);
-
-	log_setLogLevel(LOG_DEBUG);
-	log_init((argc <= 3) ? "./log/padre_treni.log" : "./log/padre_rbc.log");
-	creaBoe();
+	
+	init(argc > 3);
 
 	if(strcmp(argv[1], "ETCS1") == 0)
 	{
@@ -53,12 +52,31 @@ int main(int argc, char **argv)
 			ETCS2_RBC(argv[3]);
 		else
 			usoErrato();
-			//EXITS
 	}
+
+	cleanup();
 
 	log_fini();
 
 	return 0;
+}
+
+static void init(bool rbc)
+{
+	char logpath[32] = {0};
+
+	for(int i = 0; i < 5; i++)
+	{
+		if(snprintf(logpath, sizeof(logpath), "./log/T%d.log", i) >= sizeof(logpath))
+			LOGW("La lungezza del path del file eccede la lunghezza massima!\n");
+		unlink(logpath);
+	}
+	
+	mkdir("./log", 0777);
+
+	log_setLogLevel(LOG_DEBUG);
+	log_init(rbc ? "./log/padre_rbc.log" : "./log/padre_treni.log");
+	creaBoe();
 }
 
 static void creaBoe(void)
@@ -172,10 +190,10 @@ static pid_t getRBCpid(void)
 		sleep(1);
 	} while (sfd < 0);
 	
-	LOGD("RBC socket fd is %d\n", sfd);
+	LOGD("Il fd della socket di RBC e' %d\n", sfd);
 	read(sfd, &pid, sizeof(pid_t));
 	close(sfd);
-	LOGD("RBC PID is %d\n", pid);
+	LOGD("Il PID di RBC e' %d\n", pid);
 	return pid;
 }
 
@@ -210,4 +228,10 @@ static void aspettaTreni(int numero)
 	for(int i=0; i<numero; i++)
 		kill(pid[i], SIGKILL);
 
+}
+
+static void cleanup()
+{
+	unlink("./sok/registro");
+	unlink("./sok/rbc");
 }

@@ -31,16 +31,16 @@ int creaSocketUnix(const char *path)
 	mkdir("./sock", 0777);
 
 	r = unlink(serverAddr.sun_path);
-	LOGD("unlink() returned %d\n", r);
+	LOGD("unlink() ha restituito %d\n", r);
 
 	sfd = socket(AF_UNIX, SOCK_STREAM, 0);
-	LOGD("socket() returned %d\n", sfd);
+	LOGD("socket() ha restituito %d\n", sfd);
 
 	r = bind(sfd, (struct sockaddr *)&serverAddr, sizeof(struct sockaddr_un));
-	LOGD("bind() returned %d\n", r);
+	LOGD("bind() ha restituito %d\n", r);
 
 	r = listen(sfd, 5);
-	LOGD("listen() returned %d\n", r);
+	LOGD("listen() ha restituito %d\n", r);
 
 	return sfd;
 }
@@ -76,7 +76,7 @@ int connettiSocketUnix(const char *path)
 	if(connect(sfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0)
 	{
 		LOGE("Impossibile connettersi alla socket!\n");
-		perror("connect");
+		//perror("connect");
 		close(sfd);
 		return -1;
 	}
@@ -94,7 +94,7 @@ bool impostaTimer(int sfd, int secondi)
 	if(setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, /*(const char*)*/&rdtimeout, sizeof rdtimeout) < 0)
 	{
 		LOGE("Impossibile impostare la socket!\n");
-		perror("impostaTimer");
+		perror("setsockopt");
 		return false;
 	}
 
