@@ -1,6 +1,6 @@
-#include <math.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "mappa.h"
 
@@ -70,4 +70,9 @@ bool map_getPosFromSeg(struct posizione *pos, const char *buf)
 bool map_cmpPos(struct posizione *pos1, struct posizione *pos2)
 {
 	return pos1->id == pos2->id && pos1->stazione == pos2->stazione;
+}
+
+void map_posStr(char out[5], struct posizione *pos)
+{
+	snprintf(out, 5, "%s%d", pos->stazione ? "S" : "MA", pos->id);
 }

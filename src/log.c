@@ -2,14 +2,15 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <time.h>
 
 #include "log.h"
 
 static FILE *_fd = 0;
 static log_level _level = LOG_INVALID_LEVEL;
 
-static inline char* log_levelString(log_level level);
-static inline log_level log_levelValue(char *level);
+static char* log_levelString(log_level level);
+static log_level log_levelValue(char *level);
 
 void log_setLogLevel(log_level level)
 {
@@ -20,6 +21,15 @@ void log_init(const char *filename)
 {
 	_level = log_levelValue(getenv("SO_LOG_LEVEL"));
 	_fd = filename ? fopen(filename, "w") : stdout;
+}
+
+void log_getCurrentTimeString(char out[32])
+{
+	struct tm* to;
+	time_t t;
+	t = time(NULL);
+	to = localtime(&t);
+	LOGD("Lunghezza stringa data: %d\n", strftime(out, 32, "%Y-%m-%d %H:%M:%S", to));
 }
 
 void log_printf(log_level level, const char *format, ...)

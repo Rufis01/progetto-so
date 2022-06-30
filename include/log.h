@@ -21,6 +21,7 @@ typedef enum
 
 void log_setLogLevel(log_level level);
 void log_init(const char *filepath);
+void log_getCurrentTimeString(char out[32]);
 void log_printf(log_level level, const char *format, ...);
 void log_rename(const char *oldname, const char *newname);
 void log_fini(void);

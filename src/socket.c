@@ -91,7 +91,7 @@ bool impostaTimer(int sfd, int secondi)
 		.tv_sec = secondi
 	};
 
-	if(setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, /*(const char*)*/&rdtimeout, sizeof rdtimeout) < 0)
+	if(setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, &rdtimeout, sizeof rdtimeout) < 0)
 	{
 		LOGE("Impossibile impostare la socket!\n");
 		perror("setsockopt");

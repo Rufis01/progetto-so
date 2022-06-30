@@ -79,7 +79,10 @@
         ]
     },
     "logFileHighlighter.customPatterns": [
-        
+        {
+            "pattern": "[0-9]{2,4}-[0-9]{2}-[0-9]{2,4} [0-9]{2}:[0-9]{2}:[0-9]{2}",
+            "foreground": "#8fd4b7"
+        },        
         {
             "pattern": "(?<= )[^A-z_]?[0-9]+(?=[ \n\t\r,;:.!?])",
             "foreground": "#ff0000"
@@ -89,7 +92,7 @@
             "foreground": "#ff4949"
         },
         {
-            "pattern": "[ ][A-Z]+[A-Z0-9]+(?=[ \n\t\r,;:.!?])",
+            "pattern": "[ ][A-Z]+[A-Z0-9]+(?=[\\]\\[ \n\t\r,;:.!?])",
             "foreground": "#fffc49"
         },
         {

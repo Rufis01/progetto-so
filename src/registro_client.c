@@ -21,9 +21,9 @@
 #define GET_ITINERARIO ("ITINERARIO")
 #define GET_MAPPA ("MAPPA")
 
-static void readItinerario(struct itinerario *itin);
-
 static int _fd;
+
+static void readItinerario(struct itinerario *itin);
 
 /* Si presuppone che la socket sia in nella sottodirectory sock, a sua volta presente nella PWD
 	
@@ -112,13 +112,20 @@ struct mappa *rc_getMappa(void)
 
 void rc_freeItinerario(struct itinerario *itin)
 {
-	///TODO: free fields
+	for(int i=0; i<itin->num_tappe; i++)
+		free(itin->tappe[i]);
 	free(itin);
 }
 
 void rc_freeMappa(struct mappa *mappa)
 {
-	///TODO: free fields
+	for(int i=0; i<mappa->treni; i++)
+	{
+		struct itinerario *itin = &mappa->itinerari[i];
+		for(int j=0; j<itin->num_tappe; j++)
+			free(itin->tappe[j]);
+	}
+		
 	free(mappa);
 }
 
@@ -139,7 +146,7 @@ static void readItinerario(struct itinerario *itin)
 		uint8_t tappaLen;
 
 		read(_fd, &tappaLen, sizeof(uint8_t));
-		itin->tappe[i] = malloc(tappaLen);
+		itin->tappe[i] = calloc(tappaLen + 1, sizeof(char));
 		read(_fd, itin->tappe[i], tappaLen);
 
 		LOGD("La tappa #%d e' %s\n", i, itin->tappe[i]);

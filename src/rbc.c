@@ -9,6 +9,7 @@
 #include <sys/un.h>
 #include <sys/time.h>
 #include <poll.h>
+#include <signal.h>
 
 #include "log.h"
 #include "mappa.h"
@@ -24,15 +25,22 @@ struct stato_treni
 	struct posizione *pos;
 };
 
+static bool _isRunning = true;
+
+static int init(void);
+
 static struct stato_treni *accettaConnessioni(int sfd);
 static void servizio(struct stato_treni *stato, mappa_id mappa);
 
 static int availFd(struct pollfd *clients, int numClients, short events);
 static int remFd(struct pollfd *clients, int numClients, short events);
-static inline void pollSetUp(struct stato_treni *stato, struct pollfd *pfd);
-static inline int getTrainId(struct stato_treni *stato, int fd);
+static void pollSetUp(struct stato_treni *stato, struct pollfd *pfd);
+static int getTrainId(struct stato_treni *stato, int fd);
 static bool checkAuth(struct stato_treni *stato, struct mappa *mappa, struct posizione *pos, uint8_t tid);
-static inline void updateStato(struct stato_treni *stato, uint8_t *segmenti[2], struct posizione *pos, uint8_t tid);
+static void updateStato(struct stato_treni *stato, uint8_t *segmenti[2], struct posizione *pos, uint8_t tid);
+static void freeStato(struct stato_treni* stato);
+
+static void SIGUSR2_hanlder(int signum);
 
 /* rbc richiede come parametro la mappa */
 int main(int argc, char **argv)
@@ -49,17 +57,7 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	log_init("./log/rbc.log");
-	while(!rc_init(false))
-		sleep(1);
-
-	int sfd = creaSocketUnix("./sock/rbc");
-
-	pid_t pid = getpid();
-	int fd = accept(sfd, NULL, NULL);	//padre_treni
-	write(fd, &pid, sizeof(pid_t));
-	close(fd);
-
+	int sfd = init();
 
 	struct stato_treni *stato = accettaConnessioni(sfd);
 
@@ -67,10 +65,34 @@ int main(int argc, char **argv)
 	
 	close(sfd);
 
-	///TODO: free stato
-	rc_fini();
+	freeStato(stato);
 
+	rc_fini();
 	log_fini();
+}
+
+static int init(void)
+{
+	struct sigaction act =
+	{
+		.sa_handler = SIGUSR2_hanlder
+	} ;
+
+	sigaction(SIGUSR2, &act, NULL);
+
+
+	log_init("./log/rbc.log");
+	while(!rc_init(false))
+		sleep(1);
+	
+	int sfd = creaSocketUnix("./sock/rbc");
+
+	pid_t pid = getpid();
+	int fd = accept(sfd, NULL, NULL);	//padre_treni
+	write(fd, &pid, sizeof(pid_t));
+	close(fd);
+
+	return sfd;
 }
 
 static struct stato_treni *accettaConnessioni(int sfd)
@@ -131,7 +153,7 @@ static void servizio(struct stato_treni *stato, mappa_id mappa)
 	pollSetUp(stato, clients);
 
 
-	for(;;)
+	while(_isRunning)
 	{
 		//Wait for requests
 		poll(clients, stato->n, -1);
@@ -173,19 +195,29 @@ static void servizio(struct stato_treni *stato, mappa_id mappa)
 		}
 
 		//Give permission (or not...)
+		char tempo[32], cpos[5], npos[5];
+		log_getCurrentTimeString(tempo);
+		map_posStr(npos, &pos);
+		if(stato->primaRichiesta[tid])
+			snprintf(cpos, 5, "--");
+		else
+			map_posStr(cpos, &stato->pos[tid]);
 
 		if(pos.stazione)
 		{
+			log_printf(LOG_INFO, "[%s] [Treno: T%d] [Attuale: %4s] [Richiesto: %4s] [Autorizzato: SI]\n", tempo, tid+1, cpos, npos);
 			writeWL(fd, "OK", sizeof("OK"));
 		}
 		else
 		{
 			if(segmenti[pos.stazione][pos.id - 1] == 0)
 			{
+				log_printf(LOG_INFO, "[%s] [Treno: T%d] [Attuale: %4s] [Richiesto: %4s] [Autorizzato: SI]\n", tempo, tid+1, cpos, npos);
 				writeWL(fd, "OK", sizeof("OK"));
 			}
 			else
 			{
+				log_printf(LOG_INFO, "[%s] [Treno: T%d] [Attuale: %4s] [Richiesto: %4s] [Autorizzato: NO]\n", tempo, tid+1, cpos, npos);
 				writeWL(fd, "NO", sizeof("NO"));
 				continue;
 			}
@@ -210,13 +242,10 @@ static void servizio(struct stato_treni *stato, mappa_id mappa)
 
 	}
 
-	//Questo punto non viene mai raggiunto, SIGUSR2 fa terminare il processo
-
 	free(segmenti[0]);
 	free(segmenti[1]);
 	free(clients);
 	rc_freeMappa(map);
-
 }
 
 static int availFd(struct pollfd *clients, int numClients, short events)
@@ -297,6 +326,7 @@ static bool checkAuth(struct stato_treni *stato, struct mappa *mappa, struct pos
 static inline void updateStato(struct stato_treni *stato, uint8_t *segmenti[2], struct posizione *pos, uint8_t tid)
 {
 	struct posizione *ppos = &stato->pos[tid];
+	char segstr[5];
 	if(stato->primaRichiesta[tid])
 	{
 		stato->primaRichiesta[tid] = false;
@@ -304,9 +334,32 @@ static inline void updateStato(struct stato_treni *stato, uint8_t *segmenti[2], 
 	else
 	{
 		segmenti[ppos->stazione][ppos->id - 1]--;
-		LOGD("Il treno %d libera il segmento %s%d; adesso ci sono %d treni\n", tid, ppos->stazione ? "S" : "MA", ppos->id, segmenti[ppos->stazione][ppos->id - 1]);
+		map_posStr(segstr, ppos);
+		LOGD("Il treno %d libera il segmento %s; adesso ci sono %d treni\n", tid, segstr, segmenti[ppos->stazione][ppos->id - 1]);
 	}
 	segmenti[pos->stazione][pos->id - 1]++;
-	LOGD("Il treno %d occupa il segmento %s%d; adesso ci sono %d treni\n", tid, pos->stazione ? "S" : "MA", pos->id, segmenti[pos->stazione][pos->id - 1]);
+	map_posStr(segstr, pos);
+	LOGD("Il treno %d occupa il segmento %s; adesso ci sono %d treni\n", tid, segstr, segmenti[pos->stazione][pos->id - 1]);
 	memcpy(&stato->pos[tid], pos, sizeof(struct posizione));
+}
+
+static void freeStato(struct stato_treni* stato)
+{
+	free(stato->fd);
+	free(stato->pos);
+	free(stato->primaRichiesta);
+	free(stato);
+}
+
+static void SIGUSR2_hanlder(int signum)
+{
+	if(signum != SIGUSR2)
+	{
+		LOGW("Il gestore di SIGUSR2 è stato invocato su un segnale diverso: %d\n", signum);
+		return;
+	}
+
+	LOGD("Il gestore di SIGUSR2 è stato invocato!\n");
+
+	_isRunning = false;
 }

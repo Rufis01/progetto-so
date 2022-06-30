@@ -14,10 +14,6 @@
 #include "log.h"
 #include "socket.h"
 
-///TODO: usoErrato ok??
-///TODO: rivedere ordine di controllo. Controllare subito che mappa sia ok?
-///TODO: kill registro
-
 static void init(bool rbc);
 
 static void usoErrato(void);
@@ -30,7 +26,7 @@ static void spawnRegistro(char *mappa);
 static pid_t getRBCpid(void);
 
 static void aspettaTreni(int numero);
-static void cleanup();
+static void cleanup(void);
 
 int main(int argc, char **argv)
 {
@@ -70,11 +66,27 @@ static void init(bool rbc)
 			LOGW("La lungezza del path del file eccede la lunghezza massima!\n");
 		unlink(logpath);
 	}
+
+	if(rbc)
+	{
+		unlink("./log/padre_rbc.log");
+		unlink("./log/rbc.log");
+	}
+	else
+	{
+		unlink("./log/padre_treni.log");
+		unlink("./log/registro.log");
+	}
 	
 	mkdir("./log", 0777);
-
+#ifdef DEBUG
 	log_setLogLevel(LOG_DEBUG);
+#else
+	log_setLogLevel(LOG_INFO);
+#endif
+
 	log_init(rbc ? "./log/padre_rbc.log" : "./log/padre_treni.log");
+	
 	creaBoe();
 }
 
@@ -106,7 +118,6 @@ static void ETCS1(char *mappa)
 	mappa_id map = m_getMappaId(mappa);
 	if(map == MAPPA_NON_VALIDA)
 		usoErrato();
-		//EXITS
 	spawnRegistro(mappa);
 
 	while(!rc_init(false))
@@ -126,15 +137,11 @@ static void ETCS1(char *mappa)
 	aspettaTreni(treni);
 }
 
-///TODO: merge ETCS1 and ETCS2?
-
 static void ETCS2(char *mappa)
 {
 	mappa_id map = m_getMappaId(mappa);
 	if(map == MAPPA_NON_VALIDA)
-		usoErrato();
-		//EXITS
-	
+		usoErrato();	
 
 	spawnRegistro(mappa);
 
@@ -164,7 +171,6 @@ static void ETCS2_RBC(char *mappa)
 	mappa_id map = m_getMappaId(mappa);
 	if(map == MAPPA_NON_VALIDA)
 		usoErrato();
-		//EXITS
 
 	execl("./rbc", "rbc", mappa, (char *)NULL);
 	exit(EXIT_FAILURE);
@@ -199,7 +205,7 @@ static pid_t getRBCpid(void)
 
 static void usoErrato(void)
 {
-	puts("sciuli!");
+	puts("Parametri non corretti!\nUso:\n./padre_treni [ETCS1/ETCS2] (RBC) [MAPPA1/MAPPA2]");
 	exit(EXIT_FAILURE);
 }
 
@@ -229,7 +235,7 @@ static void aspettaTreni(int numero)
 
 }
 
-static void cleanup()
+static void cleanup(void)
 {
 	unlink("./sok/registro");
 	unlink("./sok/rbc");

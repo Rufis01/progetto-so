@@ -93,7 +93,8 @@ static void start(modalita mod)
 
 static void missione(modalita mod, struct itinerario *itin)
 {
-	bool okToMove, maConcessa = true;
+	char tempo[32];
+	bool okToMove, maConcessa = true, finitoOk = false;
 	int fail = 0;
 
 	for(int i=0; i<itin->num_tappe; i++)
@@ -104,15 +105,16 @@ static void missione(modalita mod, struct itinerario *itin)
 			break;
 		}
 
-		char *tappaCorrente = itin->tappe[i];
-		///TODO: appropriate info logging
-		LOGI("%s %d\n", tappaCorrente, time(NULL));
+		char *tappaCorrente = (i > 0) ? itin->tappe[i-1] : "--";
+		char *tappaSuccessiva = itin->tappe[i];
+		log_getCurrentTimeString(tempo);
+		log_printf(LOG_INFO, "[%s] [Attuale: %4s] [Successiva: %4s]\n", tempo, tappaCorrente, tappaSuccessiva);
 		
 		if(mod == ETCS2)
-			maConcessa = rbc_richiediMA(tappaCorrente);
+			maConcessa = rbc_richiediMA(tappaSuccessiva);
 
-		if(!ISSTAZIONE(tappaCorrente) && maConcessa)
-			okToMove = occupaSegmento(tappaCorrente);
+		if(!ISSTAZIONE(tappaSuccessiva) && maConcessa)
+			okToMove = occupaSegmento(tappaSuccessiva);
 		else
 			okToMove = true;
 
@@ -121,10 +123,9 @@ static void missione(modalita mod, struct itinerario *itin)
 		{
 			fail = 0;
 			if(i>0)
-			{
-				char *tappaPrecedente = itin->tappe[i-1];
-				liberaSegmento(tappaPrecedente);
-			}
+				liberaSegmento(tappaCorrente);
+			if(i == itin->num_tappe - 1)
+				finitoOk = true;
 			if(mod == ETCS2 && maConcessa)
 				rbc_comunicaEsitoMovimento(true);
 		}
@@ -140,6 +141,12 @@ static void missione(modalita mod, struct itinerario *itin)
 #ifndef FASTTRAIN
 		sleep(2);
 #endif
+	}
+
+	if(finitoOk)
+	{
+		log_getCurrentTimeString(tempo);
+		log_printf(LOG_INFO, "[%s] [Attuale: %4s] [Successiva: %4s]\n", tempo, itin->tappe[itin->num_tappe - 1], "--");
 	}
 }
 
@@ -234,7 +241,7 @@ static void liberaSegmento(const char* segmento)
 
 // ### SEGNALI ###
 
-static void postMissione()
+static void postMissione(void)
 {
 	int ppid = getppid();
 	sigset_t sigmask;

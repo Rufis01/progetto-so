@@ -1,5 +1,5 @@
 #CPP stands fo C PreProcessor
-CPPFLAGS := -I./include -DDEBUG
+CPPFLAGS := -I./include
 CFLAGS := -Wall -Wpedantic
 
 SRC := ./src

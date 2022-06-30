@@ -18,14 +18,6 @@
 #define TRENI_MAPPA2 5
 #define MAX_TAPPE 7
 
-/*
-static char *tappe[2] =
-{
-	{"S1","S2","S3","S4","S5","S6","S7","S8"},
-	{"MA1","MA2","MA3","MA4","MA5","MA6","MA7","MA8","MA9","MA10","MA11","MA12","MA13","MA14","MA15","MA16"}
-};
-*/
-
 #ifdef DEBUGMAP
 #undef TRENI_MAPPA1
 #define TRENI_MAPPA1 1
@@ -56,7 +48,7 @@ static void accettaConnessioni(int sfd, mappa_id map);
 static void creaFiglio(void(*fun)(void *), void *args);
 static void trenoLoop(void *args);
 static void superLoop(void *args);
-static inline uint8_t getNumTreni(mappa_id map);
+static uint8_t getNumTreni(mappa_id map);
 static uint8_t getNumTappe(char **itinerario);
 static void writeItinerario(int fd, char **itinerario, int tid);
 static void writeMappa(int fd, mappa_id map_id);
@@ -83,10 +75,7 @@ int main(int argc, char **argv)
 
 	log_fini();
 
-	///TODO: muori?
-
 	return 0;
-
 }
 
 static void accettaConnessioni(int sfd, mappa_id map)
@@ -173,7 +162,7 @@ static void trenoLoop(void *args)
 	mappa_id map_id = (mappa_id)((int *)args)[1];
 	uint8_t id = ((int *)args)[2];
 
-	//basically char *mappa[?][7]
+	//char *mappa[?][7]
 	char *((*mappa)[7]) = (map_id == MAPPA1 ? nomi_mappa1 : nomi_mappa2);
 
 	impostaTimer(fd, 0);
