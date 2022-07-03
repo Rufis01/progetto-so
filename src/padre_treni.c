@@ -60,13 +60,6 @@ static void init(bool rbc)
 {
 	char logpath[32] = {0};
 
-	for(int i = 0; i < 5; i++)
-	{
-		if(snprintf(logpath, sizeof(logpath), "./log/T%d.log", i) >= sizeof(logpath))
-			LOGW("La lungezza del path del file eccede la lunghezza massima!\n");
-		unlink(logpath);
-	}
-
 	if(rbc)
 	{
 		unlink("./log/padre_rbc.log");
@@ -76,6 +69,13 @@ static void init(bool rbc)
 	{
 		unlink("./log/padre_treni.log");
 		unlink("./log/registro.log");
+
+		for(int i = 0; i < 5; i++)
+		{
+			if(snprintf(logpath, sizeof(logpath), "./log/T%d.log", i + 1) >= sizeof(logpath))
+				LOGW("La lungezza del path del file eccede la lunghezza massima!\n");
+			unlink(logpath);
+		}
 	}
 	
 	mkdir("./log", 0777);

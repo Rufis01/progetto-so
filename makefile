@@ -10,7 +10,7 @@ INC := ./include
 all : dir padre_treni processo_treno registro rbc
 
 zip : 
-	tar -czf progetto.tar.gz makefile include src .vscode
+	tar -czf progetto.tar.gz makefile include src .vscode Relazione.pdf
 
 clean : 
 	rm -rf bin

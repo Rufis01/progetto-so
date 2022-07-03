@@ -41,7 +41,7 @@ bool rc_init(bool isTrain)
 	if(_fd < 0)
 		return false;
 
-	//Comunica al registro che l'interlocutore è un treno
+	//Comunica al registro se l'interlocutore è un treno o meno
 	uint8_t len = strlen(HELLO(isTrain));
 	writeWL(_fd, HELLO(isTrain), len);
 

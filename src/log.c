@@ -7,7 +7,7 @@
 #include "log.h"
 
 static FILE *_fd = 0;
-static log_level _level = LOG_INVALID_LEVEL;
+static log_level _level = LOG_INFO;
 
 static char* log_levelString(log_level level);
 static log_level log_levelValue(char *level);

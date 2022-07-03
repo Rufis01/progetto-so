@@ -63,7 +63,7 @@ static void start(modalita mod)
 	rc_init(true);
 	itin = rc_getItinerario();
 
-	if(snprintf(logpath, 255, "./log/T%d.log", itin->num_itinerario) >= 255)
+	if(snprintf(logpath, 255, "./log/T%d.log", itin->num_itinerario + 1) >= 255)
 	{
 		LOGF("La lungezza del path del file di segmento eccede la lunghezza massima!\n");
 		exit(EXIT_FAILURE);
